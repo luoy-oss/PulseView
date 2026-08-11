@@ -32,6 +32,8 @@ export interface AppState {
   sampleCount: number;
   risingEdges: Float64Array | null;
   fallingEdges: Float64Array | null;
+  transTimes: Float64Array | null;
+  transLevels: Int8Array | null;
   allFreqPts: FreqPoint[];
   freqPts: FreqPoint[];
   cursorA: number | null;

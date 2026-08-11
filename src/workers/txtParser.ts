@@ -13,6 +13,8 @@ self.onmessage = function (e: MessageEvent) {
   let prevLevel: number | null = null;
   const risingArr: number[] = [];
   const fallingArr: number[] = [];
+  const transSamplesArr: number[] = [];
+  const transLevelsArr: number[] = [];
   let lineStart = 0;
   let lastReport = 0;
 
@@ -32,16 +34,32 @@ self.onmessage = function (e: MessageEvent) {
     for (let j = 0; j < payload.length; j++) {
       const ch = payload[j];
       if (ch === '"' || ch === '1') {
-        if (prevLevel === 0) risingArr.push(sampleCount);
+        if (prevLevel === 0) {
+          risingArr.push(sampleCount);
+          transSamplesArr.push(sampleCount);
+          transLevelsArr.push(1);
+        }
         prevLevel = 1;
       } else if (ch === '.' || ch === '0') {
-        if (prevLevel === 1) fallingArr.push(sampleCount);
+        if (prevLevel === 1) {
+          fallingArr.push(sampleCount);
+          transSamplesArr.push(sampleCount);
+          transLevelsArr.push(0);
+        }
         prevLevel = 0;
       } else if (ch === '/') {
-        if (prevLevel === 0) risingArr.push(sampleCount);
+        if (prevLevel === 0) {
+          risingArr.push(sampleCount);
+          transSamplesArr.push(sampleCount);
+          transLevelsArr.push(1);
+        }
         prevLevel = 1;
       } else if (ch === '\\') {
-        if (prevLevel === 1) fallingArr.push(sampleCount);
+        if (prevLevel === 1) {
+          fallingArr.push(sampleCount);
+          transSamplesArr.push(sampleCount);
+          transLevelsArr.push(0);
+        }
         prevLevel = 0;
       } else {
         continue;
@@ -58,10 +76,14 @@ self.onmessage = function (e: MessageEvent) {
   if (samplingRate) {
     for (let i = 0; i < risingArr.length; i++) risingArr[i] = risingArr[i] / samplingRate;
     for (let i = 0; i < fallingArr.length; i++) fallingArr[i] = fallingArr[i] / samplingRate;
+    for (let i = 0; i < transSamplesArr.length; i++)
+      transSamplesArr[i] = transSamplesArr[i] / samplingRate;
   }
 
   const re = new Float64Array(risingArr);
   const fe = new Float64Array(fallingArr);
+  const tt = new Float64Array(transSamplesArr);
+  const tl = new Int8Array(transLevelsArr);
 
   (self as unknown as Worker).postMessage(
     {
@@ -70,8 +92,10 @@ self.onmessage = function (e: MessageEvent) {
       sampleCount,
       risingEdges: re,
       fallingEdges: fe,
+      transTimes: tt,
+      transLevels: tl,
       format: 'txt',
     },
-    [re.buffer, fe.buffer]
+    [re.buffer, fe.buffer, tt.buffer, tl.buffer]
   );
 };

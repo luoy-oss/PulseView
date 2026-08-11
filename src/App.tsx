@@ -2,7 +2,7 @@ import { useState, useCallback, useRef } from 'react';
 import { UploadScreen } from './components/UploadScreen';
 import { AppShell } from './components/AppShell';
 import { AccelSegment, AppState } from './types';
-import { computeFreqFromEdges } from './compute';
+import { computeFreqFromTransitions } from './compute';
 import { detectFormat } from './utils';
 import VcdWorker from './workers/vcdParser.ts?worker';
 import TxtWorker from './workers/txtParser.ts?worker';
@@ -12,6 +12,8 @@ const initialState: AppState = {
   sampleCount: 0,
   risingEdges: null,
   fallingEdges: null,
+  transTimes: null,
+  transLevels: null,
   allFreqPts: [],
   freqPts: [],
   cursorA: null,
@@ -54,6 +56,8 @@ export function App() {
         } else if (d.type === 'done') {
           const risingEdges: Float64Array = d.risingEdges;
           const fallingEdges: Float64Array = d.fallingEdges;
+          const transTimes: Float64Array = d.transTimes;
+          const transLevels: Int8Array = d.transLevels;
           const samplingRate: number = d.samplingRate;
           const sampleCount: number = d.sampleCount;
           const fmt: 'vcd' | 'txt' = d.format;
@@ -63,13 +67,13 @@ export function App() {
             setParsing(false);
             return;
           }
-          if (!risingEdges || risingEdges.length < 1) {
-            alert('未检测到足够的信号跳变，请检查文件格式。');
+          if (!transTimes || transTimes.length < 3) {
+            alert('未检测到足够的信号跳变（至少需要 3 个跳变），请检查文件格式。');
             setParsing(false);
             return;
           }
 
-          const allPts = computeFreqFromEdges(risingEdges, fallingEdges, fmt);
+          const allPts = computeFreqFromTransitions(transTimes, transLevels, fmt);
 
           setState({
             ...initialState,
@@ -77,6 +81,8 @@ export function App() {
             sampleCount,
             risingEdges,
             fallingEdges,
+            transTimes,
+            transLevels,
             allFreqPts: allPts,
             freqPts: allPts,
             fileName: file.name,

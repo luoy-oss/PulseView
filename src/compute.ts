@@ -1,106 +1,65 @@
 import { FreqPoint, AccelSegment } from './types';
 
-const MAX_DISPLAY_PTS = 50000;
-const GAP_THRESHOLD = 0.01; // 10ms gap -> zero Hz marker
-
-export function computeFreqFromEdges(
-  risingEdges: Float64Array,
-  fallingEdges: Float64Array,
+export function computeFreqFromTransitions(
+  transTimes: Float64Array,
+  transLevels: Int8Array,
   format: 'vcd' | 'txt'
 ): FreqPoint[] {
-  if (!risingEdges || risingEdges.length < 1) return [];
+  if (!transTimes || transTimes.length < 3) return [];
 
-  if (format === 'vcd') {
-    return computeFromRisingEdges(risingEdges);
+  // 从所有跳变中提取上升沿，用连续上升沿计算频率
+  // 这样每个完整周期（高电平+低电平）得到一个频率值
+  const risingTimes: number[] = [];
+  for (let i = 0; i < transLevels.length; i++) {
+    if (transLevels[i] === 1) {
+      risingTimes.push(transTimes[i]);
+    }
   }
-  return computeFromPulseWidth(risingEdges, fallingEdges);
-}
 
-function computeFromRisingEdges(risingEdges: Float64Array): FreqPoint[] {
-  if (risingEdges.length < 2) return [];
+  if (risingTimes.length < 2) return [];
+
   const pts: FreqPoint[] = [];
-  for (let i = 0; i < risingEdges.length - 1; i++) {
-    const period = risingEdges[i + 1] - risingEdges[i];
+  for (let i = 0; i < risingTimes.length - 1; i++) {
+    const period = risingTimes[i + 1] - risingTimes[i];
     if (period <= 0) continue;
     pts.push({
-      time: (risingEdges[i] + risingEdges[i + 1]) / 2,
+      time: risingTimes[i + 1], // 频率点时间 = 第二个上升沿时刻
       freq: 1 / period,
       period,
     });
   }
+
   return pts;
 }
 
-function computeFromPulseWidth(
-  risingEdges: Float64Array,
-  fallingEdges: Float64Array
-): FreqPoint[] {
-  if (risingEdges.length < 1 || fallingEdges.length < 1) return [];
-
-  const pts: FreqPoint[] = [];
-  let fallIdx = 0;
-
-  for (let i = 0; i < risingEdges.length; i++) {
-    const riseTime = risingEdges[i];
-    while (fallIdx < fallingEdges.length && fallingEdges[fallIdx] <= riseTime) {
-      fallIdx++;
-    }
-    if (fallIdx >= fallingEdges.length) break;
-
-    const fallTime = fallingEdges[fallIdx];
-    const pulseWidth = fallTime - riseTime;
-    if (pulseWidth <= 0) continue;
-
-    const freq = 1 / (2 * pulseWidth);
-    const center = (riseTime + fallTime) / 2;
-    pts.push({ time: center, freq, period: 2 * pulseWidth });
-  }
-
-  // Add zero-Hz markers for idle gaps
-  const withZeros: FreqPoint[] = [];
+export function computeStats(pts: FreqPoint[]): {
+  min: number;
+  max: number;
+  avg: number;
+  std: number;
+  cv: number;
+} | null {
+  if (pts.length === 0) return null;
+  let fmin = Infinity;
+  let fmax = -Infinity;
+  let fsum = 0;
   for (let i = 0; i < pts.length; i++) {
-    if (i === 0 && pts[i].time > GAP_THRESHOLD) {
-      withZeros.push({ time: 0, freq: 0 });
-    }
-    withZeros.push(pts[i]);
-    if (i < pts.length - 1) {
-      const gap = pts[i + 1].time - (pts[i].time + (pts[i].period || 0) / 2);
-      if (gap > GAP_THRESHOLD) {
-        const gapCenter = pts[i].time + (pts[i].period || 0) / 2 + gap / 2;
-        withZeros.push({ time: gapCenter, freq: 0 });
-      }
-    }
+    const f = pts[i].freq;
+    if (f < fmin) fmin = f;
+    if (f > fmax) fmax = f;
+    fsum += f;
   }
-  return withZeros;
-}
-
-export function applySmoothing(raw: FreqPoint[], win: number): FreqPoint[] {
-  if (raw.length === 0) return [];
-  const half = Math.floor(win / 2);
-  const smoothed: FreqPoint[] = new Array(raw.length);
-  for (let i = 0; i < raw.length; i++) {
-    let sum = 0;
-    let count = 0;
-    const lo = Math.max(0, i - half);
-    const hi = Math.min(raw.length - 1, i + half);
-    for (let j = lo; j <= hi; j++) {
-      sum += raw[j].freq;
-      count++;
+  const favg = fsum / pts.length;
+  if (pts.length > 1) {
+    let variance = 0;
+    for (let i = 0; i < pts.length; i++) {
+      variance += (pts[i].freq - favg) ** 2;
     }
-    smoothed[i] = { time: raw[i].time, freq: sum / count, period: raw[i].period };
+    variance /= pts.length - 1;
+    const std = Math.sqrt(variance);
+    return { min: fmin, max: fmax, avg: favg, std, cv: (std / favg) * 100 };
   }
-  return smoothed;
-}
-
-export function downsample(pts: FreqPoint[], max = MAX_DISPLAY_PTS): FreqPoint[] {
-  if (pts.length <= max) return pts;
-  const step = pts.length / max;
-  const out: FreqPoint[] = [pts[0]];
-  for (let i = 1; i < max - 1; i++) {
-    out.push(pts[Math.floor(i * step)]);
-  }
-  out.push(pts[pts.length - 1]);
-  return out;
+  return { min: fmin, max: fmax, avg: favg, std: 0, cv: 0 };
 }
 
 export function detectAccelSegments(
@@ -110,7 +69,7 @@ export function detectAccelSegments(
 ): AccelSegment[] {
   if (pts.length < 3) return [];
 
-  // Smooth
+  // Smooth for detection only (not for display)
   const out: { time: number; freq: number }[] = [];
   for (let i = 0; i < pts.length; i++) {
     let s = 0;
@@ -164,36 +123,6 @@ export function detectAccelSegments(
     i = Math.max(j - 1, i + 1);
   }
   return segs;
-}
-
-export function computeStats(pts: FreqPoint[]): {
-  min: number;
-  max: number;
-  avg: number;
-  std: number;
-  cv: number;
-} | null {
-  if (pts.length === 0) return null;
-  let fmin = Infinity;
-  let fmax = -Infinity;
-  let fsum = 0;
-  for (let i = 0; i < pts.length; i++) {
-    const f = pts[i].freq;
-    if (f < fmin) fmin = f;
-    if (f > fmax) fmax = f;
-    fsum += f;
-  }
-  const favg = fsum / pts.length;
-  if (pts.length > 1) {
-    let variance = 0;
-    for (let i = 0; i < pts.length; i++) {
-      variance += (pts[i].freq - favg) ** 2;
-    }
-    variance /= pts.length - 1;
-    const std = Math.sqrt(variance);
-    return { min: fmin, max: fmax, avg: favg, std, cv: (std / favg) * 100 };
-  }
-  return { min: fmin, max: fmax, avg: favg, std: 0, cv: 0 };
 }
 
 export function computeHistogramBins(

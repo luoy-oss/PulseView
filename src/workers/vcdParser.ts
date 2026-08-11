@@ -54,6 +54,9 @@ self.onmessage = function (e: MessageEvent) {
   let prevLevel: number | null = null;
   const risingArr: number[] = [];
   const fallingArr: number[] = [];
+  // 所有跳变，按时间顺序排列
+  const transTimesArr: number[] = [];
+  const transLevelsArr: number[] = [];
   let sampleCount = 0;
 
   for (; i < lines.length; i++) {
@@ -77,6 +80,8 @@ self.onmessage = function (e: MessageEvent) {
       } else {
         fallingArr.push(timeSec);
       }
+      transTimesArr.push(timeSec);
+      transLevelsArr.push(level);
       prevLevel = level;
     }
   }
@@ -94,6 +99,8 @@ self.onmessage = function (e: MessageEvent) {
       if (prevLevel === null || lvl !== prevLevel) {
         if (lvl === 1) risingArr.push(ts);
         else fallingArr.push(ts);
+        transTimesArr.push(ts);
+        transLevelsArr.push(lvl);
         prevLevel = lvl;
       }
     }
@@ -101,11 +108,10 @@ self.onmessage = function (e: MessageEvent) {
 
   let samplingRate = commentSampleRate;
   if (!samplingRate) {
-    const allTimes = [...risingArr, ...fallingArr].sort((a, b) => a - b);
-    if (allTimes.length > 1) {
+    if (transTimesArr.length > 1) {
       let minDt = Infinity;
-      for (let g = 1; g < Math.min(allTimes.length, 1000); g++) {
-        const dt = allTimes[g] - allTimes[g - 1];
+      for (let g = 1; g < Math.min(transTimesArr.length, 1000); g++) {
+        const dt = transTimesArr[g] - transTimesArr[g - 1];
         if (dt > 0 && dt < minDt) minDt = dt;
       }
       if (minDt < Infinity) samplingRate = 1 / (minDt * 2);
@@ -115,6 +121,8 @@ self.onmessage = function (e: MessageEvent) {
 
   const re = new Float64Array(risingArr);
   const fe = new Float64Array(fallingArr);
+  const tt = new Float64Array(transTimesArr);
+  const tl = new Int8Array(transLevelsArr);
 
   (self as unknown as Worker).postMessage(
     {
@@ -123,8 +131,10 @@ self.onmessage = function (e: MessageEvent) {
       sampleCount,
       risingEdges: re,
       fallingEdges: fe,
+      transTimes: tt,
+      transLevels: tl,
       format: 'vcd',
     },
-    [re.buffer, fe.buffer]
+    [re.buffer, fe.buffer, tt.buffer, tl.buffer]
   );
 };
