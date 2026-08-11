@@ -20,9 +20,9 @@
   --text: #e8e4f0;
   --text-2: #9a93a8;
   --text-3: #5c5668;
-  --fm: 'DM Sans', system-ui, sans-serif;
-  --fs: 'Instrument Serif', Georgia, serif;
-  --fx: 'Source Code Pro', 'Menlo', monospace;
+  --fm: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  --fs: Georgia, 'Times New Roman', serif;
+  --fx: 'Cascadia Code', 'Fira Code', 'JetBrains Mono', Consolas, 'Courier New', monospace;
   --radius: 10px;
   --radius-sm: 6px;
 }
