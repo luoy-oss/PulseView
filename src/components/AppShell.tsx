@@ -1,4 +1,4 @@
-import { useCallback, useState, useRef } from 'react';
+import { useRef } from 'react';
 import { AppState, AccelSegment } from '../types';
 import { Header } from './Header';
 import { Sidebar } from './Sidebar';
@@ -10,7 +10,6 @@ import { fmtFreq, fmtTime } from '../utils';
 interface Props {
   state: AppState;
   onFile: (file: File) => void;
-  onSmoothingChange: (win: number) => void;
   onAccelDetect: (segs: AccelSegment[]) => void;
   onCursorChange: (which: 'A' | 'B', idx: number | null) => void;
   onRangeModeChange: (mode: boolean) => void;
@@ -26,23 +25,13 @@ interface Props {
 export function AppShell({
   state,
   onFile,
-  onSmoothingChange,
   onAccelDetect,
   onCursorChange,
   onRangeModeChange,
   onRangeChange,
   onClearRange,
 }: Props) {
-  const [smoothWin, setSmoothWin] = useState(5);
   const resetZoomRef = useRef<() => void>(() => {});
-
-  const handleSmoothChange = useCallback(
-    (val: number) => {
-      setSmoothWin(val);
-      onSmoothingChange(val);
-    },
-    [onSmoothingChange]
-  );
 
   const risingCount = state.risingEdges?.length ?? 0;
   const fallingCount = state.fallingEdges?.length ?? 0;
@@ -58,9 +47,7 @@ export function AppShell({
     <div className="app-root">
       <Header
         fileName={state.fileName}
-        smoothWin={smoothWin}
         allFreqPts={state.allFreqPts}
-        onSmoothChange={handleSmoothChange}
         onFile={onFile}
         onRangeModeChange={onRangeModeChange}
         rangeMode={state.rangeMode}
@@ -73,7 +60,6 @@ export function AppShell({
           fallingCount={fallingCount}
           duration={dur}
           allFreqPts={state.allFreqPts}
-          displayCount={state.freqPts.length}
         />
         <div className="chart-area">
           <FreqChart

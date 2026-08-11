@@ -3,9 +3,7 @@ import { FreqPoint } from '../types';
 
 interface Props {
   fileName: string;
-  smoothWin: number;
   allFreqPts: FreqPoint[];
-  onSmoothChange: (v: number) => void;
   onFile: (file: File) => void;
   onRangeModeChange: (mode: boolean) => void;
   rangeMode: boolean;
@@ -14,9 +12,7 @@ interface Props {
 
 export function Header({
   fileName,
-  smoothWin,
   allFreqPts,
-  onSmoothChange,
   onFile,
   onRangeModeChange,
   rangeMode,
@@ -54,15 +50,6 @@ export function Header({
         <span className="fname">{fileName}</span>
       </div>
       <div className="header-r">
-        <span className="ctrl-label">平滑</span>
-        <input
-          type="number"
-          className="num-in"
-          value={smoothWin}
-          min={1}
-          max={200}
-          onChange={(e) => onSmoothChange(parseInt(e.target.value) || 5)}
-        />
         <button
           className={`btn ${rangeMode ? 'btn-p' : ''}`}
           onClick={() => onRangeModeChange(!rangeMode)}

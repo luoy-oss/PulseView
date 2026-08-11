@@ -2,7 +2,7 @@ import { useState, useCallback, useRef } from 'react';
 import { UploadScreen } from './components/UploadScreen';
 import { AppShell } from './components/AppShell';
 import { AccelSegment, AppState } from './types';
-import { computeFreqFromEdges, applySmoothing, downsample } from './compute';
+import { computeFreqFromEdges } from './compute';
 import { detectFormat } from './utils';
 import VcdWorker from './workers/vcdParser.ts?worker';
 import TxtWorker from './workers/txtParser.ts?worker';
@@ -70,8 +70,6 @@ export function App() {
           }
 
           const allPts = computeFreqFromEdges(risingEdges, fallingEdges, fmt);
-          const smoothed = applySmoothing(allPts, 5);
-          const displayPts = downsample(smoothed);
 
           setState({
             ...initialState,
@@ -80,7 +78,7 @@ export function App() {
             risingEdges,
             fallingEdges,
             allFreqPts: allPts,
-            freqPts: displayPts,
+            freqPts: allPts,
             fileName: file.name,
             format: fmt,
           });
@@ -96,17 +94,6 @@ export function App() {
       worker.postMessage({ type: 'parse', buffer: buf }, [buf]);
     });
   }, []);
-
-  const updateSmoothing = useCallback(
-    (win: number) => {
-      setState((prev) => {
-        const smoothed = applySmoothing(prev.allFreqPts, win);
-        const displayPts = downsample(smoothed);
-        return { ...prev, freqPts: displayPts };
-      });
-    },
-    []
-  );
 
   const updateAccelSegs = useCallback((segs: AccelSegment[]) => {
     setState((prev) => ({ ...prev, accelSegs: segs }));
@@ -167,7 +154,6 @@ export function App() {
     <AppShell
       state={state}
       onFile={handleFile}
-      onSmoothingChange={updateSmoothing}
       onAccelDetect={updateAccelSegs}
       onCursorChange={updateCursor}
       onRangeModeChange={setRangeMode}

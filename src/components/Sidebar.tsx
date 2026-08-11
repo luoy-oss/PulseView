@@ -8,7 +8,6 @@ interface Props {
   fallingCount: number;
   duration: number;
   allFreqPts: FreqPoint[];
-  displayCount: number;
 }
 
 export function Sidebar({
@@ -17,7 +16,6 @@ export function Sidebar({
   fallingCount,
   duration,
   allFreqPts,
-  displayCount,
 }: Props) {
   const stats = computeStats(allFreqPts);
 
@@ -35,9 +33,6 @@ export function Sidebar({
           <div className="sidebar-divider" />
           <div className="sidebar-section">
             <StatRow label="频率点数" value={allFreqPts.length.toLocaleString()} cls="accent" />
-            {displayCount < allFreqPts.length && (
-              <StatRow label="图表显示" value={displayCount.toLocaleString()} />
-            )}
             <StatRow label="频率最小值" value={fmtFreq(stats.min)} cls="green" />
             <StatRow label="频率最大值" value={fmtFreq(stats.max)} cls="rose" />
             <StatRow label="频率均值" value={fmtFreq(stats.avg)} cls="accent" />
