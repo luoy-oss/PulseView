@@ -4,9 +4,8 @@ import { AppShell } from './components/AppShell';
 import { AccelSegment, AppState } from './types';
 import { computeFreqFromEdges, applySmoothing, downsample } from './compute';
 import { detectFormat } from './utils';
-
-const vcdWorkerUrl = new URL('./workers/vcdParser.ts', import.meta.url);
-const txtWorkerUrl = new URL('./workers/txtParser.ts', import.meta.url);
+import VcdWorker from './workers/vcdParser.ts?worker';
+import TxtWorker from './workers/txtParser.ts?worker';
 
 const initialState: AppState = {
   samplingRate: 0,
@@ -45,8 +44,7 @@ export function App() {
         workerRef.current.terminate();
       }
 
-      const workerUrl = format === 'vcd' ? vcdWorkerUrl : txtWorkerUrl;
-      const worker = new Worker(workerUrl, { type: 'module' });
+      const worker = format === 'vcd' ? new VcdWorker() : new TxtWorker();
       workerRef.current = worker;
 
       worker.onmessage = (e) => {
