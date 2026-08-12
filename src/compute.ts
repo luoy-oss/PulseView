@@ -180,7 +180,10 @@ export function detectAccelSegments(pts: FreqPoint[]): AccelSegment[] {
   const isCore = new Uint8Array(n);
   for (let i = 0; i < n; i++) isCore[i] = maxRel[i] < T ? 1 : 0;
 
-  // 平台精确扩展：核心区均值作为平台频率，向两侧并入偏离 < 2% 的点
+  // 平台精确扩展：核心区均值作为平台频率，向两侧并入频率接近平台值的帧。
+  // 容差 1%（大于平台采样量化噪声 ±0.84%，小于过渡尾帧偏离 1.5%+），
+  // 连续 2 帧偏离才停止（跨越平台内单帧噪声，不吞过渡段尾帧，
+  // 使过渡段延伸到频率真正到达平台值的帧）。
   const isPlateau = new Uint8Array(n);
   for (let i = 0; i < n; i++) isPlateau[i] = isCore[i];
   let i0 = 0;
@@ -196,14 +199,27 @@ export function detectAccelSegments(pts: FreqPoint[]): AccelSegment[] {
       cnt++;
     }
     const fp = sum / cnt;
-    const tol = fp * 0.02;
+    const tol = fp * 0.01;
     let j = i0 - 1;
-    while (j >= 0 && !isPlateau[j] && Math.abs(sm[j] - fp) < tol) {
+    while (j >= 0 && !isPlateau[j]) {
+      if (Math.abs(sm[j] - fp) < tol) {
+        isPlateau[j] = 1;
+        j--;
+        continue;
+      }
+      // 偏离平台值：若下一帧仍偏离（连续 2 帧）则停止；单帧尖刺跨越
+      if (j - 1 >= 0 && !isPlateau[j - 1] && Math.abs(sm[j - 1] - fp) >= tol) break;
       isPlateau[j] = 1;
       j--;
     }
     j = e0;
-    while (j < n && !isPlateau[j] && Math.abs(sm[j] - fp) < tol) {
+    while (j < n && !isPlateau[j]) {
+      if (Math.abs(sm[j] - fp) < tol) {
+        isPlateau[j] = 1;
+        j++;
+        continue;
+      }
+      if (j + 1 < n && !isPlateau[j + 1] && Math.abs(sm[j + 1] - fp) >= tol) break;
       isPlateau[j] = 1;
       j++;
     }
@@ -234,6 +250,19 @@ export function detectAccelSegments(pts: FreqPoint[]): AccelSegment[] {
     }
   }
   segs.sort((a, b) => a.start - b.start);
+
+  // 共享边界帧：过渡段与相邻匀速段共用边界帧（过渡尾帧 = 匀速首帧，频率相同），
+  // 使加减速区间的首/尾帧与匀速区间的首帧保持一致，不丢帧
+  for (let k = 0; k + 1 < segs.length; k++) {
+    const left = segs[k];
+    const right = segs[k + 1];
+    if (left.type === right.type) continue;
+    if (left.type === 'chg') {
+      left.end = right.start; // 过渡尾 = 匀速首
+    } else {
+      right.start = left.end; // 匀速尾 = 过渡首
+    }
+  }
 
   // 合并相邻同类型段
   const merged: RawSeg[] = [];
