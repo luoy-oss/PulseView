@@ -3,6 +3,7 @@ import type { FreqPoint } from './types';
 export interface XYPoint {
   x: number;
   y: number;
+  period?: number;
 }
 
 export interface ViewRange {
@@ -35,7 +36,7 @@ function upperBoundTime(pts: FreqPoint[], t: number): number {
 }
 
 function toXY(p: FreqPoint): XYPoint {
-  return { x: p.time, y: p.freq };
+  return { x: p.time, y: p.freq, period: p.period };
 }
 
 /**

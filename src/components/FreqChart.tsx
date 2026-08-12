@@ -311,7 +311,11 @@ export function FreqChart({
           callbacks: {
             title: (items) =>
               items.length ? '时间  ' + fmtTime(items[0].parsed.x ?? 0) : '',
-            label: (item) => '频率  ' + fmtFreq(item.parsed.y ?? 0),
+            label: (item) => {
+              const raw = item.raw as { period?: number } | undefined;
+              const text = '频率  ' + fmtFreq(item.parsed.y ?? 0);
+              return raw?.period ? text + ' · 脉宽 ' + fmtTime(raw.period) : text;
+            },
           },
         },
         zoom: {

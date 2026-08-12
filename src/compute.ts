@@ -33,11 +33,12 @@ export function computeFreqFromTransitions(
 ): FreqPoint[] {
   if (!transTimes || transTimes.length < 3) return [];
 
-  // 用所有相邻跳变对计算瞬时频率：每个跳变对（上升→下降 或 下降→上升）
-  // 的时间差是一个半周期，freq = 1/(2×dt)，时间点取跳变对中点。
-  // 这与 PulseView 逻辑分析仪的测量一致（freq = 1/(2×脉冲宽度)）。
-  // 初始状态/信号停歇产生的异常大间隔会被识别为间隙并跳过，
-  // 避免产生接近 0 Hz 的假频率点。
+  // 每个高电平脉冲生成一个频率点：跳变对 [t[i], t[i+1]] 为高电平
+  // （transLevels[i] === 1）时，其持续时间 dt 就是脉冲宽度，
+  // freq = 1/(2×dt)，与 PulseView 逻辑分析仪的测量一致。
+  // 低电平区间（脉冲间隔/停歇）不生成频率点 —— 一个脉冲就是一个
+  // 数据点，避免把每个脉冲拆成两个半周期点造成阶梯状曲线。
+  // 初始状态/信号停歇产生的异常大间隔识别为间隙并跳过。
   const dts: number[] = [];
   for (let i = 1; i < transTimes.length; i++) {
     const dt = transTimes[i] - transTimes[i - 1];
@@ -50,12 +51,13 @@ export function computeFreqFromTransitions(
 
   const pts: FreqPoint[] = [];
   for (let i = 0; i < transTimes.length - 1; i++) {
+    if (transLevels[i] !== 1) continue; // 只处理高电平（脉冲）跳变对
     const dt = transTimes[i + 1] - transTimes[i];
     if (dt <= 0 || dt > gapThreshold) continue;
     pts.push({
-      time: (transTimes[i] + transTimes[i + 1]) / 2,
+      time: (transTimes[i] + transTimes[i + 1]) / 2, // 脉冲中点
       freq: 1 / (2 * dt),
-      period: 2 * dt,
+      period: dt, // 脉冲持续时间（高电平宽度）
     });
   }
 
@@ -202,7 +204,23 @@ export function detectAccelSegments(
     }
   }
 
-  return merged.map(({ type, start, end }) => {
+  // 段内累计变化 < df 的加速/减速段降级为匀速（消除平台噪声抖动产生的碎段）
+  for (const seg of merged) {
+    if (seg.type !== 'const') {
+      const delta = Math.abs(pts[seg.end].freq - pts[seg.start].freq);
+      if (delta < df) seg.type = 'const';
+    }
+  }
+
+  // 降级/合并后再次合并相邻同类型段
+  const final: RawSeg[] = [];
+  for (const seg of merged) {
+    const last = final[final.length - 1];
+    if (last && last.type === seg.type) last.end = seg.end;
+    else final.push(seg);
+  }
+
+  return final.map(({ type, start, end }) => {
     const st = pts[start].time;
     const et = pts[end].time;
     const duration = et - st;
