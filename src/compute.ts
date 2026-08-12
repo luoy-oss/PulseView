@@ -94,11 +94,12 @@ export function computeStats(pts: FreqPoint[]): {
   return { min: fmin, max: fmax, avg: favg, std: 0, cv: 0 };
 }
 
-// 收敛式多尺度波动分段（无参数）：
-// 匀速段在任意时间窗口内频率波动（极差）都很小，加速/减速段波动大。
-// 算法自行多轮验证：滑动窗口从大尺度开始逐轮减半重分段，每轮验证类型结构，
-// 两轮结构一致即收敛（取更细的一轮）；随后扩充合并噪声碎段。
-// 收敛尺度由信号自身决定（短平台需要小尺度才能分辨），不依赖外部参数。
+// 平台定位分段（无参数）：
+// 频率-时间曲线由"长平台（匀速）+ 急剧过渡（加速/减速）"组成。
+// 算法：小窗口相对波动识别平台核心区 → 用平台均值向两侧精确扩展
+// （频率偏离平台值超过 2% 即止，边界精确到 1~2 个点）→ 平台之间的
+// 过渡区即为加速/减速段（方向由段首尾频率差判定）。
+// 停歇间隙会把曲线切成独立块，分段不跨停歇。
 export function detectAccelSegments(pts: FreqPoint[]): AccelSegment[] {
   const n = pts.length;
   if (n < 3) return [];
@@ -125,7 +126,9 @@ export function detectAccelSegments(pts: FreqPoint[]): AccelSegment[] {
     sm[i] = s / c;
   }
 
-  // 滑动窗口频率极差（单调队列 O(n)）
+  // 多尺度滑动窗口相对极差的最大值：
+  // 平台（匀速）在任何窗口下波动都很小；单调爬升段在小窗口下波动也小，
+  // 但大窗口下波动大 —— 取所有尺度中的最大相对波动即可同时排除爬升与噪声。
   const windowRange = (winDt: number): Float64Array => {
     const range = new Float64Array(n);
     const maxQ = new Int32Array(n);
@@ -148,85 +151,105 @@ export function detectAccelSegments(pts: FreqPoint[]): AccelSegment[] {
     return range;
   };
 
-  // 自适应波动阈值（相对波动 = 极差/频率，平台噪声 ∝ 频率；p10×20，下限 1.5%）
-  const relThreshold = (range: Float64Array): number => {
-    const sample: number[] = [];
-    const step = Math.max(1, Math.floor(n / 8000));
-    for (let i = 0; i < n; i += step) {
-      sample.push(sm[i] > 0 ? range[i] / sm[i] : 0);
+  const totalDur = pts[n - 1].time - pts[0].time;
+  // 最大尺度限制为总时长/32：窗口过大会跨过段边界污染平台（平台必须比窗口长才有核心）
+  const base = Math.max(medianGap * 8, totalDur / 16384);
+  const maxScale = Math.max(totalDur / 32, base * 2);
+  const scales: number[] = [];
+  for (let s = base; s <= maxScale; s *= 4) scales.push(s);
+  if (scales.length === 0 || scales[scales.length - 1] < maxScale) {
+    scales.push(maxScale);
+  }
+  const maxRel = new Float64Array(n);
+  for (const sc of scales) {
+    const range = windowRange(sc);
+    for (let i = 0; i < n; i++) {
+      const r = sm[i] > 0 ? range[i] / sm[i] : 0;
+      if (r > maxRel[i]) maxRel[i] = r;
     }
-    sample.sort((a, b) => a - b);
-    return Math.max(sample[Math.floor(sample.length * 0.1)] * 20, 0.015);
-  };
+  }
 
+  // 自适应波动阈值（maxRel 的 p10×20，下限 1.5%）
+  const sample: number[] = [];
+  const step = Math.max(1, Math.floor(n / 8000));
+  for (let i = 0; i < n; i += step) sample.push(maxRel[i]);
+  sample.sort((a, b) => a - b);
+  const T = Math.max(sample[Math.floor(sample.length * 0.1)] * 20, 0.015);
+
+  // 平台核心点：所有尺度下波动都小
+  const isCore = new Uint8Array(n);
+  for (let i = 0; i < n; i++) isCore[i] = maxRel[i] < T ? 1 : 0;
+
+  // 平台精确扩展：核心区均值作为平台频率，向两侧并入偏离 < 2% 的点
+  const isPlateau = new Uint8Array(n);
+  for (let i = 0; i < n; i++) isPlateau[i] = isCore[i];
+  let i0 = 0;
+  while (i0 < n) {
+    while (i0 < n && !isCore[i0]) i0++;
+    if (i0 >= n) break;
+    let e0 = i0;
+    while (e0 < n && isCore[e0]) e0++;
+    let sum = 0;
+    let cnt = 0;
+    for (let j = i0; j < e0; j++) {
+      sum += sm[j];
+      cnt++;
+    }
+    const fp = sum / cnt;
+    const tol = fp * 0.02;
+    let j = i0 - 1;
+    while (j >= 0 && !isPlateau[j] && Math.abs(sm[j] - fp) < tol) {
+      isPlateau[j] = 1;
+      j--;
+    }
+    j = e0;
+    while (j < n && !isPlateau[j] && Math.abs(sm[j] - fp) < tol) {
+      isPlateau[j] = 1;
+      j++;
+    }
+    i0 = e0;
+  }
+
+  // 分段：平台 = 匀速段；非平台 = 过渡段；按停歇间隙切分
   type RawSeg = { type: 'chg' | 'const'; start: number; end: number };
-
-  // 单尺度分段：波动超阈值 → 变化段，否则匀速段；按停歇间隙切分
-  const segmentAtScale = (scale: number): RawSeg[] => {
-    const range = windowRange(scale);
-    const T = relThreshold(range);
-    const st = new Uint8Array(n);
-    for (let i = 0; i < n; i++) {
-      st[i] = sm[i] > 0 && range[i] / sm[i] > T ? 1 : 0;
+  const segs: RawSeg[] = [];
+  let s = 0;
+  const segType = (i: number) => (isPlateau[i] ? 'const' : 'chg');
+  for (let i = 0; i < n; i++) {
+    if (segType(i) !== segType(s)) {
+      segs.push({ type: segType(s), start: s, end: i - 1 });
+      s = i;
     }
-    const segs: RawSeg[] = [];
-    let s = 0;
-    for (let i = 0; i < n; i++) {
-      if (st[i] !== st[s]) {
-        segs.push({ type: st[s] ? 'chg' : 'const', start: s, end: i - 1 });
-        s = i;
-      }
-    }
-    segs.push({ type: st[s] ? 'chg' : 'const', start: s, end: n - 1 });
-    for (let i = 1; i < n; i++) {
-      if (pts[i].time - pts[i - 1].time > gapThreshold) {
-        for (const seg of segs) {
-          if (seg.start < i && i <= seg.end) {
-            segs.push({ type: seg.type, start: i, end: seg.end });
-            seg.end = i - 1;
-            break;
-          }
+  }
+  segs.push({ type: segType(s), start: s, end: n - 1 });
+  for (let i = 1; i < n; i++) {
+    if (pts[i].time - pts[i - 1].time > gapThreshold) {
+      for (const seg of segs) {
+        if (seg.start < i && i <= seg.end) {
+          segs.push({ type: seg.type, start: i, end: seg.end });
+          seg.end = i - 1;
+          break;
         }
       }
     }
-    segs.sort((a, b) => a.start - b.start);
-    return segs;
-  };
-
-  // ---- 多轮收敛：尺度从大逐轮减半，类型结构连续两轮一致即收敛 ----
-  const totalDur = pts[n - 1].time - pts[0].time;
-  const maxScale = Math.max(totalDur / 4, gapThreshold * 16);
-  const minScale = Math.max(medianGap * 40, totalDur / 2048);
-  let scale = maxScale;
-  let prevStructure = '';
-  let result: RawSeg[] = segmentAtScale(scale);
-  while (scale > minScale) {
-    scale = Math.max(scale / 2, minScale);
-    const segs = segmentAtScale(scale);
-    const structure = segs.map((sg) => sg.type).join('|');
-    if (structure === prevStructure) {
-      result = segs; // 收敛：取更细的一轮
-      break;
-    }
-    result = segs;
-    prevStructure = structure;
   }
+  segs.sort((a, b) => a.start - b.start);
 
-  // ---- 扩充：合并相邻同类型段 ----
+  // 合并相邻同类型段
   const merged: RawSeg[] = [];
-  for (const seg of result) {
+  for (const seg of segs) {
     const last = merged[merged.length - 1];
     if (last && last.type === seg.type) last.end = seg.end;
     else merged.push(seg);
   }
 
-  // ---- 扩充：噪声碎段（点数少且时长极短）并入相邻段 ----
+  // 噪声碎段（点数极少且时长极短）并入相邻段
   let changed = true;
   while (changed && merged.length > 1) {
     changed = false;
     for (let k = 0; k < merged.length; k++) {
       const dur = pts[merged[k].end].time - pts[merged[k].start].time;
-      if (merged[k].end - merged[k].start + 1 < 5 && dur < gapThreshold * 8) {
+      if (merged[k].end - merged[k].start + 1 < 3 && dur < gapThreshold * 4) {
         if (k === 0) {
           merged[1].start = merged[0].start;
           merged.splice(0, 1);
@@ -240,7 +263,7 @@ export function detectAccelSegments(pts: FreqPoint[]): AccelSegment[] {
     }
   }
 
-  // ---- 方向：按段首尾频率差判定；变化过小降级为匀速 ----
+  // 方向：段首尾频率差；变化过小降级为匀速
   type DirSeg = { type: 'accel' | 'decel' | 'const'; start: number; end: number };
   const final: DirSeg[] = [];
   for (const seg of merged) {
