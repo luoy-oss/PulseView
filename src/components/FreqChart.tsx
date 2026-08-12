@@ -1,12 +1,33 @@
-import { useRef, useEffect, useCallback } from 'react';
-import { Chart, ChartData, ChartOptions, ScatterDataPoint } from 'chart.js/auto';
+import { useRef, useEffect, useCallback, useMemo, useState } from 'react';
+import {
+  Chart,
+  ChartData,
+  ChartOptions,
+  ScatterDataPoint,
+  Plugin,
+} from 'chart.js/auto';
 import { Chart as ReactChart } from 'react-chartjs-2';
 import zoomPlugin from 'chartjs-plugin-zoom';
 import annotationPlugin from 'chartjs-plugin-annotation';
 import { FreqPoint, AccelSegment } from '../types';
 import { fmtTime, fmtTimeShort, fmtFreq, fmtFreqShort } from '../utils';
+import { buildVisibleData, ViewRange } from '../decimate';
 
 Chart.register(zoomPlugin, annotationPlugin);
+
+const DATASET_STYLE = {
+  borderColor: 'rgba(212,162,78,0.85)',
+  backgroundColor: 'rgba(212,162,78,0.06)',
+  borderWidth: 1.5,
+  pointRadius: 0,
+  pointHoverRadius: 4,
+  pointHoverBackgroundColor: '#d4a24e',
+  pointHoverBorderColor: '#fff',
+  pointHoverBorderWidth: 1.5,
+  showLine: true,
+  tension: 0.2,
+  fill: true,
+} as const;
 
 interface Props {
   freqPts: FreqPoint[];
@@ -47,39 +68,75 @@ export function FreqChart({
   const chartRef = useRef<Chart<'scatter', ScatterDataPoint[]> | null>(null);
   const dragRef = useRef({ dragging: false, startX: 0 });
 
+  // 当前可见时间窗口（缩放/平移后由图表更新回调同步）
+  const [viewRange, setViewRange] = useState<ViewRange | null>(null);
+  // 图表实际像素宽度，用于按像素列做 min/max 抽稀
+  const [chartWidth, setChartWidth] = useState(1200);
+
+  // 每次图表更新后同步可见范围，覆盖滚轮缩放、平移、重置等所有路径；
+  // 该值同时用于：1) 写回 options.scales.x.min/max 使缩放状态在 React 重渲染后不丢失
+  // 2) 定位可见数据区间做抽稀
+  const viewSyncRef = useRef<(min: number, max: number) => void>(() => {});
+  useEffect(() => {
+    viewSyncRef.current = (min, max) => {
+      setViewRange((prev) => {
+        if (!prev) return { min, max };
+        const tol = (Math.abs(min) + Math.abs(max) + 1) * 1e-9;
+        return Math.abs(prev.min - min) < tol && Math.abs(prev.max - max) < tol
+          ? prev
+          : { min, max };
+      });
+    };
+  });
+  const viewSyncPlugin = useMemo<Plugin<'scatter'>>(
+    () => ({
+      id: 'view-sync',
+      afterUpdate(chart) {
+        const x = chart.scales.x;
+        if (typeof x.min === 'number' && typeof x.max === 'number') {
+          viewSyncRef.current(x.min, x.max);
+        }
+      },
+    }),
+    []
+  );
+
+  // 数据变化（重新载入文件）时重置可见范围
+  useEffect(() => {
+    setViewRange(null);
+  }, [freqPts]);
+
   // Register resetZoom callback
   useEffect(() => {
     if (resetZoomRef) {
       resetZoomRef.current = () => {
         const chart = chartRef.current;
-        if (chart) {
-          chart.resetZoom();
-          chart.options.scales!.x!.min = undefined;
-          chart.options.scales!.x!.max = undefined;
-          chart.update('none');
-        }
+        if (chart) chart.resetZoom();
+        setViewRange(null);
       };
     }
   }, [resetZoomRef]);
 
-  const data: ChartData<'scatter', ScatterDataPoint[]> = {
-    datasets: [
-      {
-        data: freqPts.map((p) => ({ x: p.time, y: p.freq })),
-        borderColor: 'rgba(212,162,78,0.85)',
-        backgroundColor: 'rgba(212,162,78,0.06)',
-        borderWidth: 1.5,
-        pointRadius: 0,
-        pointHoverRadius: 4,
-        pointHoverBackgroundColor: '#d4a24e',
-        pointHoverBorderColor: '#fff',
-        pointHoverBorderWidth: 1.5,
-        showLine: true,
-        tension: 0.2,
-        fill: true,
-      },
-    ],
-  };
+  // 开发环境暴露图表实例，便于自动化验证
+  useEffect(() => {
+    if (import.meta.env.DEV) {
+      (window as unknown as { __pvChart?: Chart<'scatter', ScatterDataPoint[]> }).__pvChart =
+        chartRef.current ?? undefined;
+    }
+  }, []);
+
+  // 当前可见窗口的渲染数据：超过阈值时按像素列 min/max 抽稀
+  const visibleData = useMemo(
+    () => buildVisibleData(freqPts, viewRange, chartWidth),
+    [freqPts, viewRange, chartWidth]
+  );
+
+  const data: ChartData<'scatter', ScatterDataPoint[]> = useMemo(
+    () => ({
+      datasets: [{ ...DATASET_STYLE, data: visibleData }],
+    }),
+    [visibleData]
+  );
 
   const buildAnnotations = useCallback(() => {
     const annos: Record<string, unknown> = {};
@@ -184,81 +241,87 @@ export function FreqChart({
     [rangeMode, freqPts, onCursorChange]
   );
 
-  const options: ChartOptions<'scatter'> = {
-    responsive: true,
-    maintainAspectRatio: false,
-    animation: false,
-    interaction: { mode: 'nearest', axis: 'x', intersect: false },
-    scales: {
-      x: {
-        type: 'linear',
-        title: {
-          display: true,
-          text: '时间',
-          color: '#5c5668',
-          font: { family: 'DM Sans', size: 11, weight: 600 },
-          padding: { top: 8 },
+  const options = useMemo<ChartOptions<'scatter'>>(
+    () => ({
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: false,
+      onResize: (_chart, size) =>
+        setChartWidth(Math.max(1, Math.round(size.width))),
+      interaction: { mode: 'nearest', axis: 'x', intersect: false },
+      scales: {
+        x: {
+          type: 'linear',
+          ...(viewRange ? { min: viewRange.min, max: viewRange.max } : {}),
+          title: {
+            display: true,
+            text: '时间',
+            color: '#5c5668',
+            font: { family: 'DM Sans', size: 11, weight: 600 },
+            padding: { top: 8 },
+          },
+          ticks: {
+            color: '#5c5668',
+            font: { family: 'Source Code Pro', size: 10 },
+            callback: (v) => fmtTimeShort(v as number),
+            maxTicksLimit: 12,
+          },
+          grid: { color: 'rgba(42,39,53,0.6)', lineWidth: 0.8 },
+          border: { color: 'rgba(42,39,53,0.8)' },
         },
-        ticks: {
-          color: '#5c5668',
-          font: { family: 'Source Code Pro', size: 10 },
-          callback: (v) => fmtTimeShort(v as number),
-          maxTicksLimit: 12,
-        },
-        grid: { color: 'rgba(42,39,53,0.6)', lineWidth: 0.8 },
-        border: { color: 'rgba(42,39,53,0.8)' },
-      },
-      y: {
-        title: {
-          display: true,
-          text: '频率',
-          color: '#5c5668',
-          font: { family: 'DM Sans', size: 11, weight: 600 },
-          padding: { bottom: 8 },
-        },
-        ticks: {
-          color: '#5c5668',
-          font: { family: 'Source Code Pro', size: 10 },
-          callback: (v) => fmtFreqShort(v as number),
-          maxTicksLimit: 8,
-        },
-        grid: { color: 'rgba(42,39,53,0.6)', lineWidth: 0.8 },
-        border: { color: 'rgba(42,39,53,0.8)' },
-      },
-    },
-    plugins: {
-      legend: { display: false },
-      tooltip: {
-        backgroundColor: 'rgba(23,21,28,0.96)',
-        titleColor: '#e8e4f0',
-        bodyColor: '#9a93a8',
-        borderColor: 'rgba(212,162,78,.15)',
-        borderWidth: 1,
-        padding: 12,
-        displayColors: false,
-        cornerRadius: 8,
-        titleFont: { family: 'DM Sans', size: 12, weight: 600 },
-        bodyFont: { family: 'Source Code Pro', size: 11 },
-        callbacks: {
-          title: (items) =>
-            items.length ? '时间  ' + fmtTime(items[0].parsed.x ?? 0) : '',
-          label: (item) => '频率  ' + fmtFreq(item.parsed.y ?? 0),
+        y: {
+          title: {
+            display: true,
+            text: '频率',
+            color: '#5c5668',
+            font: { family: 'DM Sans', size: 11, weight: 600 },
+            padding: { bottom: 8 },
+          },
+          ticks: {
+            color: '#5c5668',
+            font: { family: 'Source Code Pro', size: 10 },
+            callback: (v) => fmtFreqShort(v as number),
+            maxTicksLimit: 8,
+          },
+          grid: { color: 'rgba(42,39,53,0.6)', lineWidth: 0.8 },
+          border: { color: 'rgba(42,39,53,0.8)' },
         },
       },
-      zoom: {
-        pan: { enabled: !rangeMode, mode: 'x' },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: 'rgba(23,21,28,0.96)',
+          titleColor: '#e8e4f0',
+          bodyColor: '#9a93a8',
+          borderColor: 'rgba(212,162,78,.15)',
+          borderWidth: 1,
+          padding: 12,
+          displayColors: false,
+          cornerRadius: 8,
+          titleFont: { family: 'DM Sans', size: 12, weight: 600 },
+          bodyFont: { family: 'Source Code Pro', size: 11 },
+          callbacks: {
+            title: (items) =>
+              items.length ? '时间  ' + fmtTime(items[0].parsed.x ?? 0) : '',
+            label: (item) => '频率  ' + fmtFreq(item.parsed.y ?? 0),
+          },
+        },
         zoom: {
-          wheel: { enabled: true },
-          pinch: { enabled: true },
-          mode: 'x',
+          pan: { enabled: !rangeMode, mode: 'x' },
+          zoom: {
+            wheel: { enabled: true },
+            pinch: { enabled: true },
+            mode: 'x',
+          },
+        },
+        annotation: {
+          annotations: buildAnnotations() as Record<string, never>,
         },
       },
-      annotation: {
-        annotations: buildAnnotations() as Record<string, never>,
-      },
-    },
-    onClick: handleChartClick as (evt: unknown) => void,
-  };
+      onClick: handleChartClick as (evt: unknown) => void,
+    }),
+    [viewRange, rangeMode, handleChartClick, buildAnnotations]
+  );
 
   // Range drag handlers
   const handleMouseDown = useCallback(
@@ -387,6 +450,7 @@ export function FreqChart({
           type="scatter"
           data={data}
           options={options}
+          plugins={[viewSyncPlugin]}
           onMouseDown={handleMouseDown}
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
