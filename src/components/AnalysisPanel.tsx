@@ -166,37 +166,35 @@ function AccelPane({
   accelSegs: AccelSegment[];
   onDetect: (segs: AccelSegment[]) => void;
 }) {
-  // 自适应默认阈值：频率变化范围的 0.5%
-  const [df, setDf] = useState(() => {
-    let fmin = Infinity;
-    let fmax = -Infinity;
-    for (const p of allFreqPts) {
-      if (p.freq < fmin) fmin = p.freq;
-      if (p.freq > fmax) fmax = p.freq;
-    }
-    const d = Math.round((fmax - fmin) * 0.005 / 10) * 10;
-    return Math.max(10, Math.min(20000, d));
+  // 自适应默认窗口：总时长 × 2%
+  const [dt, setDt] = useState(() => {
+    const dur =
+      allFreqPts.length > 1
+        ? allFreqPts[allFreqPts.length - 1].time - allFreqPts[0].time
+        : 1;
+    const d = Math.round((dur * 0.02 * 1000) / 10) * 10;
+    return Math.max(20, Math.min(5000, d));
   });
 
   const handleDetect = useCallback(() => {
-    const segs = detectAccelSegments(allFreqPts, df);
+    const segs = detectAccelSegments(allFreqPts, dt / 1000);
     onDetect(segs);
-  }, [allFreqPts, df, onDetect]);
+  }, [allFreqPts, dt, onDetect]);
 
   return (
     <div>
       <div className="accel-ctrls">
-        <label>频率差阈值 df</label>
+        <label>窗口 dt</label>
         <input
           type="range"
           className="slider"
           min={10}
-          max={20000}
+          max={2000}
           step={10}
-          value={df}
-          onChange={(e) => setDf(parseInt(e.target.value))}
+          value={dt}
+          onChange={(e) => setDt(parseInt(e.target.value))}
         />
-        <span className="accel-val">{df} Hz</span>
+        <span className="accel-val">{dt} ms</span>
         <button className="btn btn-p btn-sm" onClick={handleDetect}>
           检测
         </button>
