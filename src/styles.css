@@ -599,6 +599,11 @@ body {
   flex-wrap: wrap;
 }
 
+.accel-hint {
+  color: var(--text-3);
+  font-size: 12px;
+}
+
 .accel-ctrls label {
   font-size: 11px;
   color: var(--text-3);

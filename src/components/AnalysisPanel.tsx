@@ -166,38 +166,18 @@ function AccelPane({
   accelSegs: AccelSegment[];
   onDetect: (segs: AccelSegment[]) => void;
 }) {
-  // 自适应默认窗口：总时长 × 2%
-  const [dt, setDt] = useState(() => {
-    const dur =
-      allFreqPts.length > 1
-        ? allFreqPts[allFreqPts.length - 1].time - allFreqPts[0].time
-        : 1;
-    const d = Math.round((dur * 0.02 * 1000) / 10) * 10;
-    return Math.max(20, Math.min(5000, d));
-  });
-
   const handleDetect = useCallback(() => {
-    const segs = detectAccelSegments(allFreqPts, dt / 1000);
+    const segs = detectAccelSegments(allFreqPts);
     onDetect(segs);
-  }, [allFreqPts, dt, onDetect]);
+  }, [allFreqPts, onDetect]);
 
   return (
     <div>
       <div className="accel-ctrls">
-        <label>窗口 dt</label>
-        <input
-          type="range"
-          className="slider"
-          min={10}
-          max={2000}
-          step={10}
-          value={dt}
-          onChange={(e) => setDt(parseInt(e.target.value))}
-        />
-        <span className="accel-val">{dt} ms</span>
         <button className="btn btn-p btn-sm" onClick={handleDetect}>
           检测
         </button>
+        <span className="accel-hint">自动识别加速 / 减速 / 匀速区间</span>
       </div>
       <div className="accel-wrap">
         <table className="accel-tbl">
@@ -219,7 +199,7 @@ function AccelPane({
                   colSpan={7}
                   style={{ color: 'var(--text-3)', textAlign: 'center', padding: 20 }}
                 >
-                  未检测到分段（可调整 df 阈值后重新检测）
+                  未检测到分段（点击"检测"自动分析加速/减速/匀速区间）
                 </td>
               </tr>
             ) : (
