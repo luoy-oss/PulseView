@@ -200,9 +200,17 @@ export function FreqChart({
         xMin: seg.startTime,
         xMax: seg.endTime,
         backgroundColor:
-          seg.type === 'accel' ? 'rgba(126,198,153,.04)' : 'rgba(224,108,117,.04)',
+          seg.type === 'accel'
+            ? 'rgba(126,198,153,.04)'
+            : seg.type === 'decel'
+              ? 'rgba(224,108,117,.04)'
+              : 'rgba(156,150,168,.05)',
         borderColor:
-          seg.type === 'accel' ? 'rgba(126,198,153,.15)' : 'rgba(224,108,117,.15)',
+          seg.type === 'accel'
+            ? 'rgba(126,198,153,.15)'
+            : seg.type === 'decel'
+              ? 'rgba(224,108,117,.15)'
+              : 'rgba(156,150,168,.2)',
         borderWidth: 1,
       };
     });

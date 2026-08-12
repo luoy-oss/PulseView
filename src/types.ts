@@ -10,7 +10,7 @@ export interface Transition {
 }
 
 export interface AccelSegment {
-  type: 'accel' | 'decel';
+  type: 'accel' | 'decel' | 'const';
   startTime: number;
   endTime: number;
   duration: number;

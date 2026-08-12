@@ -1,4 +1,30 @@
-import { FreqPoint, AccelSegment } from './types';
+import type { FreqPoint, AccelSegment } from './types';
+
+// 查找第 k 小元素（原地修改数组），用于计算中位数
+function quickselect(arr: number[], k: number): number {
+  let lo = 0;
+  let hi = arr.length - 1;
+  while (lo < hi) {
+    const pivot = arr[(lo + hi) >> 1];
+    let i = lo;
+    let j = hi;
+    while (i <= j) {
+      while (arr[i] < pivot) i++;
+      while (arr[j] > pivot) j--;
+      if (i <= j) {
+        const t = arr[i];
+        arr[i] = arr[j];
+        arr[j] = t;
+        i++;
+        j--;
+      }
+    }
+    if (k <= j) hi = j;
+    else if (k >= i) lo = i;
+    else return arr[k];
+  }
+  return arr[k];
+}
 
 export function computeFreqFromTransitions(
   transTimes: Float64Array,
@@ -7,25 +33,29 @@ export function computeFreqFromTransitions(
 ): FreqPoint[] {
   if (!transTimes || transTimes.length < 3) return [];
 
-  // 从所有跳变中提取上升沿，用连续上升沿计算频率
-  // 这样每个完整周期（高电平+低电平）得到一个频率值
-  const risingTimes: number[] = [];
-  for (let i = 0; i < transLevels.length; i++) {
-    if (transLevels[i] === 1) {
-      risingTimes.push(transTimes[i]);
-    }
+  // 用所有相邻跳变对计算瞬时频率：每个跳变对（上升→下降 或 下降→上升）
+  // 的时间差是一个半周期，freq = 1/(2×dt)，时间点取跳变对中点。
+  // 这与 PulseView 逻辑分析仪的测量一致（freq = 1/(2×脉冲宽度)）。
+  // 初始状态/信号停歇产生的异常大间隔会被识别为间隙并跳过，
+  // 避免产生接近 0 Hz 的假频率点。
+  const dts: number[] = [];
+  for (let i = 1; i < transTimes.length; i++) {
+    const dt = transTimes[i] - transTimes[i - 1];
+    if (dt > 0) dts.push(dt);
   }
+  if (dts.length < 2) return [];
 
-  if (risingTimes.length < 2) return [];
+  // 间隙阈值 = 跳变间隔中位数的 50 倍
+  const gapThreshold = quickselect(dts, dts.length >> 1) * 50;
 
   const pts: FreqPoint[] = [];
-  for (let i = 0; i < risingTimes.length - 1; i++) {
-    const period = risingTimes[i + 1] - risingTimes[i];
-    if (period <= 0) continue;
+  for (let i = 0; i < transTimes.length - 1; i++) {
+    const dt = transTimes[i + 1] - transTimes[i];
+    if (dt <= 0 || dt > gapThreshold) continue;
     pts.push({
-      time: risingTimes[i + 1], // 频率点时间 = 第二个上升沿时刻
-      freq: 1 / period,
-      period,
+      time: (transTimes[i] + transTimes[i + 1]) / 2,
+      freq: 1 / (2 * dt),
+      period: 2 * dt,
     });
   }
 
@@ -62,67 +92,134 @@ export function computeStats(pts: FreqPoint[]): {
   return { min: fmin, max: fmax, avg: favg, std: 0, cv: 0 };
 }
 
+// 按 df（绝对频率差阈值，Hz）把频率曲线分为 加速/减速/匀速 三段。
+// 对每个点，以 winTime（默认 100ms）为时间窗口计算窗口内频率累计变化：
+// |Δf| <= df 视为匀速，Δf > df 为加速，Δf < -df 为减速；连续相同状态合并为段。
+// 信号停歇（相邻点时间间隔异常大）会把曲线切成独立块，分段不跨停歇。
 export function detectAccelSegments(
   pts: FreqPoint[],
-  smoothWin: number,
-  minChangeRatio: number
+  df: number,
+  smoothWin = 5,
+  winTime = 0.1
 ): AccelSegment[] {
-  if (pts.length < 3) return [];
+  const n = pts.length;
+  if (n < 3 || !(df > 0)) return [];
 
-  // Smooth for detection only (not for display)
-  const out: { time: number; freq: number }[] = [];
-  for (let i = 0; i < pts.length; i++) {
+  // 停歇间隙阈值 = 中位时间间隔 × 50
+  const dts: number[] = [];
+  for (let i = 1; i < n; i++) {
+    const dt = pts[i].time - pts[i - 1].time;
+    if (dt > 0) dts.push(dt);
+  }
+  const gapThreshold =
+    dts.length > 1 ? quickselect(dts.slice(), dts.length >> 1) * 50 : Infinity;
+
+  // 轻量平滑，仅用于方向判定（不改变显示数据）
+  const sm: number[] = new Array(n);
+  const half = Math.floor(smoothWin / 2);
+  for (let i = 0; i < n; i++) {
     let s = 0;
     let c = 0;
-    for (
-      let j = Math.max(0, i - smoothWin);
-      j <= Math.min(pts.length - 1, i + smoothWin);
-      j++
-    ) {
+    for (let j = Math.max(0, i - half); j <= Math.min(n - 1, i + half); j++) {
       s += pts[j].freq;
       c++;
     }
-    out.push({ time: pts[i].time, freq: s / c });
+    sm[i] = s / c;
   }
 
-  const segs: AccelSegment[] = [];
-  let i = 0;
-  while (i < out.length - 1) {
-    let j = i + 1;
-    let dir = 0;
-    while (j < out.length) {
-      const d = out[j].freq - out[i].freq;
-      const dd = d > 0 ? 1 : d < 0 ? -1 : 0;
-      if (dd === 0) {
-        j++;
-        continue;
-      }
-      if (dir === 0) dir = dd;
-      else if (dd !== dir) break;
-      j++;
+  // 时间窗口内的频率累计变化 → 方向
+  const dir = new Int8Array(n);
+  for (let i = 0; i < n; i++) {
+    const tTarget = pts[i].time - winTime;
+    let lo = 0;
+    let hi = i;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (pts[mid].time < tTarget) lo = mid + 1;
+      else hi = mid;
     }
-    if (dir !== 0 && j > i + 1) {
-      const sf = out[i].freq;
-      const ef = out[Math.min(j - 1, out.length - 1)].freq;
-      const ratio = Math.abs(ef - sf) / Math.max(sf, 1e-10);
-      if (ratio >= minChangeRatio) {
-        const st = out[i].time;
-        const et = out[Math.min(j - 1, out.length - 1)].time;
-        const duration = et - st;
-        segs.push({
-          type: dir > 0 ? 'accel' : 'decel',
-          startTime: st,
-          endTime: et,
-          duration,
-          startFreq: sf,
-          endFreq: ef,
-          rate: duration > 0 ? (ef - sf) / duration : 0,
-        });
-      }
+    const k = lo - 1; // 窗口起点（最后一个 time < tTarget 的点）
+    if (k < 0) {
+      dir[i] = 0;
+      continue;
     }
-    i = Math.max(j - 1, i + 1);
+    const d = sm[i] - sm[k];
+    dir[i] = d > df ? 1 : d < -df ? -1 : 0;
   }
-  return segs;
+
+  // 合并连续相同方向 → 段
+  type RawSeg = { type: 'accel' | 'decel' | 'const'; start: number; end: number };
+  const segs: RawSeg[] = [];
+  let s = 0;
+  for (let i = 0; i < n; i++) {
+    if (dir[i] !== dir[s]) {
+      segs.push({ type: dirToType(dir[s]), start: s, end: i - 1 });
+      s = i;
+    }
+  }
+  segs.push({ type: dirToType(dir[s]), start: s, end: n - 1 });
+
+  // 跨停歇间隙的段按块切分（停歇处强制分段）
+  for (let i = 1; i < n; i++) {
+    if (pts[i].time - pts[i - 1].time > gapThreshold) {
+      // 找出包含该间隙的段并一分为二
+      for (const seg of segs) {
+        if (seg.start < i && i <= seg.end) {
+          segs.push({ type: seg.type, start: i, end: seg.end });
+          seg.end = i - 1;
+          break;
+        }
+      }
+    }
+  }
+  segs.sort((a, b) => a.start - b.start);
+
+  // 合并相邻同类型段
+  const merged: RawSeg[] = [];
+  for (const seg of segs) {
+    const last = merged[merged.length - 1];
+    if (last && last.type === seg.type) last.end = seg.end;
+    else merged.push(seg);
+  }
+
+  // 短段（噪声产生）并入相邻段，保证分段连续完整
+  const minPts = 5;
+  let changed = true;
+  while (changed && merged.length > 1) {
+    changed = false;
+    for (let k = 0; k < merged.length; k++) {
+      if (merged[k].end - merged[k].start + 1 < minPts) {
+        if (k === 0) {
+          merged[1].start = merged[0].start;
+          merged.splice(0, 1);
+        } else {
+          merged[k - 1].end = merged[k].end;
+          merged.splice(k, 1);
+        }
+        changed = true;
+        break;
+      }
+    }
+  }
+
+  return merged.map(({ type, start, end }) => {
+    const st = pts[start].time;
+    const et = pts[end].time;
+    const duration = et - st;
+    return {
+      type,
+      startTime: st,
+      endTime: et,
+      duration,
+      startFreq: pts[start].freq,
+      endFreq: pts[end].freq,
+      rate: duration > 0 ? (pts[end].freq - pts[start].freq) / duration : 0,
+    };
+  });
+}
+
+function dirToType(dir: number): 'accel' | 'decel' | 'const' {
+  return dir > 0 ? 'accel' : dir < 0 ? 'decel' : 'const';
 }
 
 export function computeHistogramBins(

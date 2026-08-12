@@ -681,6 +681,11 @@ body {
   font-weight: 600;
 }
 
+.type-const {
+  color: var(--text-2) !important;
+  font-weight: 600;
+}
+
 /* ===== HISTOGRAM ===== */
 .hist-wrap {
   height: 100%;

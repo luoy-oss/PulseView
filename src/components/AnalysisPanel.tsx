@@ -166,37 +166,37 @@ function AccelPane({
   accelSegs: AccelSegment[];
   onDetect: (segs: AccelSegment[]) => void;
 }) {
-  const [smoothWin, setSmoothWin] = useState(20);
-  const [minChange, setMinChange] = useState(5);
+  // 自适应默认阈值：频率变化范围的 0.5%
+  const [df, setDf] = useState(() => {
+    let fmin = Infinity;
+    let fmax = -Infinity;
+    for (const p of allFreqPts) {
+      if (p.freq < fmin) fmin = p.freq;
+      if (p.freq > fmax) fmax = p.freq;
+    }
+    const d = Math.round((fmax - fmin) * 0.005 / 10) * 10;
+    return Math.max(10, Math.min(20000, d));
+  });
 
   const handleDetect = useCallback(() => {
-    const segs = detectAccelSegments(allFreqPts, smoothWin, minChange / 100);
+    const segs = detectAccelSegments(allFreqPts, df);
     onDetect(segs);
-  }, [allFreqPts, smoothWin, minChange, onDetect]);
+  }, [allFreqPts, df, onDetect]);
 
   return (
     <div>
       <div className="accel-ctrls">
-        <label>平滑窗口</label>
+        <label>频率差阈值 df</label>
         <input
           type="range"
           className="slider"
-          min={1}
-          max={80}
-          value={smoothWin}
-          onChange={(e) => setSmoothWin(parseInt(e.target.value))}
+          min={10}
+          max={20000}
+          step={10}
+          value={df}
+          onChange={(e) => setDf(parseInt(e.target.value))}
         />
-        <span className="accel-val">{smoothWin}</span>
-        <label style={{ marginLeft: 12 }}>最小变化</label>
-        <input
-          type="range"
-          className="slider"
-          min={1}
-          max={50}
-          value={minChange}
-          onChange={(e) => setMinChange(parseInt(e.target.value))}
-        />
-        <span className="accel-val">{minChange}%</span>
+        <span className="accel-val">{df} Hz</span>
         <button className="btn btn-p btn-sm" onClick={handleDetect}>
           检测
         </button>
@@ -221,14 +221,26 @@ function AccelPane({
                   colSpan={7}
                   style={{ color: 'var(--text-3)', textAlign: 'center', padding: 20 }}
                 >
-                  未检测到加减速段落
+                  未检测到分段（可调整 df 阈值后重新检测）
                 </td>
               </tr>
             ) : (
               accelSegs.map((s, i) => (
                 <tr key={i}>
-                  <td className={s.type === 'accel' ? 'type-accel' : 'type-decel'}>
-                    {s.type === 'accel' ? '↑ 加速' : '↓ 减速'}
+                  <td
+                    className={
+                      s.type === 'accel'
+                        ? 'type-accel'
+                        : s.type === 'decel'
+                          ? 'type-decel'
+                          : 'type-const'
+                    }
+                  >
+                    {s.type === 'accel'
+                      ? '↑ 加速'
+                      : s.type === 'decel'
+                        ? '↓ 减速'
+                        : '→ 匀速'}
                   </td>
                   <td>{fmtTimeShort(s.startTime)}</td>
                   <td>{fmtTimeShort(s.endTime)}</td>
