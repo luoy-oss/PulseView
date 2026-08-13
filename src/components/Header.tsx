@@ -68,7 +68,7 @@ export function Header({
         <input
           ref={inputRef}
           type="file"
-          accept=".vcd,.txt,.csv"
+          accept=".vcd,.txt,.csv,.sr"
           hidden
           onChange={handleFile}
         />

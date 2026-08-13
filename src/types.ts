@@ -24,7 +24,7 @@ export interface ParseResult {
   sampleCount: number;
   risingEdges: Float64Array;
   fallingEdges: Float64Array;
-  format: 'vcd' | 'txt';
+  format: 'vcd' | 'txt' | 'sr';
 }
 
 export interface AppState {
@@ -45,5 +45,5 @@ export interface AppState {
   rangeDataIdxStart: number | null;
   rangeDataIdxEnd: number | null;
   fileName: string;
-  format: 'vcd' | 'txt';
+  format: 'vcd' | 'txt' | 'sr';
 }

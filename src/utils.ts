@@ -40,8 +40,9 @@ export function clamp(v: number, lo: number, hi: number): number {
   return Math.max(lo, Math.min(hi, v));
 }
 
-export function detectFormat(file: File): 'vcd' | 'txt' {
+export function detectFormat(file: File): 'vcd' | 'txt' | 'sr' {
   const name = file.name.toLowerCase();
   if (name.endsWith('.vcd')) return 'vcd';
+  if (name.endsWith('.sr')) return 'sr';
   return 'txt';
 }

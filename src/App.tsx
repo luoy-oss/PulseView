@@ -6,6 +6,7 @@ import { computeFreqFromTransitions } from './compute';
 import { detectFormat } from './utils';
 import VcdWorker from './workers/vcdParser.ts?worker';
 import TxtWorker from './workers/txtParser.ts?worker';
+import SrWorker from './workers/srParser.ts?worker';
 
 const initialState: AppState = {
   samplingRate: 0,
@@ -46,13 +47,17 @@ export function App() {
         workerRef.current.terminate();
       }
 
-      const worker = format === 'vcd' ? new VcdWorker() : new TxtWorker();
+      const worker =
+        format === 'vcd' ? new VcdWorker() : format === 'sr' ? new SrWorker() : new TxtWorker();
       workerRef.current = worker;
 
       worker.onmessage = (e) => {
         const d = e.data;
         if (d.type === 'progress') {
           setParseProgress(`已解析 ${d.sampleCount.toLocaleString()} 个采样点…`);
+        } else if (d.type === 'error') {
+          alert('解析出错：' + d.message);
+          setParsing(false);
         } else if (d.type === 'done') {
           const risingEdges: Float64Array = d.risingEdges;
           const fallingEdges: Float64Array = d.fallingEdges;
@@ -60,7 +65,7 @@ export function App() {
           const transLevels: Int8Array = d.transLevels;
           const samplingRate: number = d.samplingRate;
           const sampleCount: number = d.sampleCount;
-          const fmt: 'vcd' | 'txt' = d.format;
+          const fmt: 'vcd' | 'txt' | 'sr' = d.format;
 
           if (!samplingRate) {
             alert('文件头中未找到采样频率，请检查文件格式。');
