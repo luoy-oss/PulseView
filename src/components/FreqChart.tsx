@@ -9,7 +9,7 @@ import {
 import { Chart as ReactChart } from 'react-chartjs-2';
 import zoomPlugin from 'chartjs-plugin-zoom';
 import annotationPlugin from 'chartjs-plugin-annotation';
-import { FreqPoint, AccelSegment } from '../types';
+import { FreqPoint, AccelSegment, FreqMode } from '../types';
 import { fmtTime, fmtTimeShort, fmtFreq, fmtFreqShort } from '../utils';
 import { buildVisibleData, ViewRange } from '../decimate';
 
@@ -32,6 +32,7 @@ const DATASET_STYLE = {
 interface Props {
   freqPts: FreqPoint[];
   allFreqPts: FreqPoint[];
+  freqMode: FreqMode;
   cursorA: number | null;
   cursorB: number | null;
   rangeMode: boolean;
@@ -53,6 +54,7 @@ interface Props {
 export function FreqChart({
   freqPts,
   allFreqPts,
+  freqMode,
   cursorA,
   cursorB,
   rangeMode,
@@ -314,7 +316,8 @@ export function FreqChart({
             label: (item) => {
               const raw = item.raw as { period?: number } | undefined;
               const text = '频率  ' + fmtFreq(item.parsed.y ?? 0);
-              return raw?.period ? text + ' · 脉宽 ' + fmtTime(raw.period) : text;
+              if (!raw?.period) return text;
+              return text + ' · ' + (freqMode === 'rising' ? '周期 ' : '脉宽 ') + fmtTime(raw.period);
             },
           },
         },
@@ -332,7 +335,7 @@ export function FreqChart({
       },
       onClick: handleChartClick as (evt: unknown) => void,
     }),
-    [viewRange, rangeMode, handleChartClick, buildAnnotations]
+    [viewRange, rangeMode, handleChartClick, buildAnnotations, freqMode]
   );
 
   // Range drag handlers

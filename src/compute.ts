@@ -1,4 +1,4 @@
-import type { FreqPoint, AccelSegment } from './types';
+import type { FreqPoint, AccelSegment, FreqMode } from './types';
 
 // 查找第 k 小元素（原地修改数组），用于计算中位数
 function quickselect(arr: number[], k: number): number {
@@ -29,13 +29,16 @@ function quickselect(arr: number[], k: number): number {
 export function computeFreqFromTransitions(
   transTimes: Float64Array,
   transLevels: Int8Array,
-  format: 'vcd' | 'txt' | 'sr'
+  format: 'vcd' | 'txt' | 'sr',
+  freqMode: FreqMode = 'pulse'
 ): FreqPoint[] {
   if (!transTimes || transTimes.length < 3) return [];
 
-  // 每个高电平脉冲生成一个频率点：跳变对 [t[i], t[i+1]] 为高电平
-  // （transLevels[i] === 1）时，其持续时间 dt 就是脉冲宽度，
+  // pulse 模式：每个高电平脉冲生成一个频率点，跳变对 [t[i], t[i+1]]
+  // 为高电平（transLevels[i] === 1）时，其持续时间 dt 就是脉冲宽度，
   // freq = 1/(2×dt)，与 PulseView 逻辑分析仪的测量一致。
+  // rising 模式：相邻两个上升沿（transLevels[i] === 1）的间隔 dt 即周期，
+  // freq = 1/dt。
   // 低电平区间（脉冲间隔/停歇）不生成频率点 —— 一个脉冲就是一个
   // 数据点，避免把每个脉冲拆成两个半周期点造成阶梯状曲线。
   // 初始状态/信号停歇产生的异常大间隔识别为间隙并跳过。
@@ -50,6 +53,26 @@ export function computeFreqFromTransitions(
   const gapThreshold = quickselect(dts, dts.length >> 1) * 50;
 
   const pts: FreqPoint[] = [];
+  if (freqMode === 'rising') {
+    // 收集上升沿索引，相邻上升沿构成一个周期
+    const rises: number[] = [];
+    for (let i = 0; i < transTimes.length; i++) {
+      if (transLevels[i] === 1) rises.push(i);
+    }
+    for (let k = 1; k < rises.length; k++) {
+      const i = rises[k - 1];
+      const j = rises[k];
+      const dt = transTimes[j] - transTimes[i];
+      if (dt <= 0 || dt > gapThreshold) continue;
+      pts.push({
+        time: (transTimes[i] + transTimes[j]) / 2, // 周期中点
+        freq: 1 / dt,
+        period: dt, // 周期（上升沿间隔）
+      });
+    }
+    return pts;
+  }
+
   for (let i = 0; i < transTimes.length - 1; i++) {
     if (transLevels[i] !== 1) continue; // 只处理高电平（脉冲）跳变对
     const dt = transTimes[i + 1] - transTimes[i];

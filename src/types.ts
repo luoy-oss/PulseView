@@ -9,6 +9,10 @@ export interface Transition {
   level: 0 | 1;
 }
 
+// 频率计算模式：pulse = 高电平脉冲宽度（freq=1/(2×脉宽)，默认）；
+// rising = 相邻两个上升沿的周期（freq=1/周期）
+export type FreqMode = 'pulse' | 'rising';
+
 export interface AccelSegment {
   type: 'accel' | 'decel' | 'const';
   startTime: number;
@@ -46,4 +50,5 @@ export interface AppState {
   rangeDataIdxEnd: number | null;
   fileName: string;
   format: 'vcd' | 'txt' | 'sr';
+  freqMode: FreqMode;
 }

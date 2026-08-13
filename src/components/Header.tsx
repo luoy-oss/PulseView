@@ -1,9 +1,11 @@
 import { useRef, useCallback } from 'react';
-import { FreqPoint } from '../types';
+import { FreqPoint, FreqMode } from '../types';
 
 interface Props {
   fileName: string;
   allFreqPts: FreqPoint[];
+  freqMode: FreqMode;
+  onFreqModeChange: (mode: FreqMode) => void;
   onFile: (file: File) => void;
   onRangeModeChange: (mode: boolean) => void;
   rangeMode: boolean;
@@ -13,6 +15,8 @@ interface Props {
 export function Header({
   fileName,
   allFreqPts,
+  freqMode,
+  onFreqModeChange,
   onFile,
   onRangeModeChange,
   rangeMode,
@@ -50,6 +54,22 @@ export function Header({
         <span className="fname">{fileName}</span>
       </div>
       <div className="header-r">
+        <div className="freq-mode-group">
+          <button
+            className={`btn btn-sm ${freqMode === 'pulse' ? 'btn-p' : ''}`}
+            title="每个高电平脉冲生成一个频率点：freq = 1 / (2 × 脉宽)"
+            onClick={() => onFreqModeChange('pulse')}
+          >
+            脉冲宽度
+          </button>
+          <button
+            className={`btn btn-sm ${freqMode === 'rising' ? 'btn-p' : ''}`}
+            title="相邻两个上升沿的间隔为一个周期：freq = 1 / 周期"
+            onClick={() => onFreqModeChange('rising')}
+          >
+            上升沿周期
+          </button>
+        </div>
         <button
           className={`btn ${rangeMode ? 'btn-p' : ''}`}
           onClick={() => onRangeModeChange(!rangeMode)}

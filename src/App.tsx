@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef } from 'react';
 import { UploadScreen } from './components/UploadScreen';
 import { AppShell } from './components/AppShell';
-import { AccelSegment, AppState } from './types';
+import { AccelSegment, AppState, FreqMode } from './types';
 import { computeFreqFromTransitions } from './compute';
 import { detectFormat } from './utils';
 import VcdWorker from './workers/vcdParser.ts?worker';
@@ -27,6 +27,7 @@ const initialState: AppState = {
   rangeDataIdxEnd: null,
   fileName: '',
   format: 'txt',
+  freqMode: 'pulse',
 };
 
 export function App() {
@@ -78,20 +79,28 @@ export function App() {
             return;
           }
 
-          const allPts = computeFreqFromTransitions(transTimes, transLevels, fmt);
-
-          setState({
-            ...initialState,
-            samplingRate,
-            sampleCount,
-            risingEdges,
-            fallingEdges,
-            transTimes,
-            transLevels,
-            allFreqPts: allPts,
-            freqPts: allPts,
-            fileName: file.name,
-            format: fmt,
+          setState((prev) => {
+            // 按用户当前选择的频率计算模式生成频率点
+            const allPts = computeFreqFromTransitions(
+              transTimes,
+              transLevels,
+              fmt,
+              prev.freqMode
+            );
+            return {
+              ...initialState,
+              freqMode: prev.freqMode,
+              samplingRate,
+              sampleCount,
+              risingEdges,
+              fallingEdges,
+              transTimes,
+              transLevels,
+              allFreqPts: allPts,
+              freqPts: allPts,
+              fileName: file.name,
+              format: fmt,
+            };
           });
           setParsing(false);
         }
@@ -103,6 +112,30 @@ export function App() {
       };
 
       worker.postMessage({ type: 'parse', buffer: buf }, [buf]);
+    });
+  }, []);
+
+  const updateFreqMode = useCallback((mode: FreqMode) => {
+    setState((prev) => {
+      if (!prev.transTimes || !prev.transLevels) return { ...prev, freqMode: mode };
+      const allPts = computeFreqFromTransitions(
+        prev.transTimes,
+        prev.transLevels,
+        prev.format,
+        mode
+      );
+      return {
+        ...prev,
+        freqMode: mode,
+        allFreqPts: allPts,
+        freqPts: allPts,
+        // 频率点序列变化后，光标索引/分段/框选索引均失效，重置分析状态
+        cursorA: null,
+        cursorB: null,
+        accelSegs: [],
+        rangeDataIdxStart: null,
+        rangeDataIdxEnd: null,
+      };
     });
   }, []);
 
@@ -165,6 +198,7 @@ export function App() {
     <AppShell
       state={state}
       onFile={handleFile}
+      onFreqModeChange={updateFreqMode}
       onAccelDetect={updateAccelSegs}
       onCursorChange={updateCursor}
       onRangeModeChange={setRangeMode}

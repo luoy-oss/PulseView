@@ -1,5 +1,5 @@
 import { useRef } from 'react';
-import { AppState, AccelSegment } from '../types';
+import { AppState, AccelSegment, FreqMode } from '../types';
 import { Header } from './Header';
 import { Sidebar } from './Sidebar';
 import { FreqChart } from './FreqChart';
@@ -10,6 +10,7 @@ import { fmtFreq, fmtTime } from '../utils';
 interface Props {
   state: AppState;
   onFile: (file: File) => void;
+  onFreqModeChange: (mode: FreqMode) => void;
   onAccelDetect: (segs: AccelSegment[]) => void;
   onCursorChange: (which: 'A' | 'B', idx: number | null) => void;
   onRangeModeChange: (mode: boolean) => void;
@@ -25,6 +26,7 @@ interface Props {
 export function AppShell({
   state,
   onFile,
+  onFreqModeChange,
   onAccelDetect,
   onCursorChange,
   onRangeModeChange,
@@ -48,6 +50,8 @@ export function AppShell({
       <Header
         fileName={state.fileName}
         allFreqPts={state.allFreqPts}
+        freqMode={state.freqMode}
+        onFreqModeChange={onFreqModeChange}
         onFile={onFile}
         onRangeModeChange={onRangeModeChange}
         rangeMode={state.rangeMode}
@@ -65,6 +69,7 @@ export function AppShell({
           <FreqChart
             freqPts={state.freqPts}
             allFreqPts={state.allFreqPts}
+            freqMode={state.freqMode}
             cursorA={state.cursorA}
             cursorB={state.cursorB}
             rangeMode={state.rangeMode}

@@ -253,6 +253,27 @@ body {
   gap: 10px;
 }
 
+.freq-mode-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.freq-mode-group .btn {
+  border: none;
+  background: transparent;
+  padding: 5px 10px;
+}
+
+.freq-mode-group .btn.btn-p {
+  background: var(--accent-dim);
+  border-radius: calc(var(--radius-sm) - 2px);
+}
+
 .ctrl-label {
   font-size: 11px;
   color: var(--text-3);
