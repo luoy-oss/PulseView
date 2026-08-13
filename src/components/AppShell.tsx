@@ -83,6 +83,7 @@ export function AppShell({
             cursorB={state.cursorB}
             freqPts={state.freqPts}
             accelSegs={state.accelSegs}
+            risingEdges={state.risingEdges}
             onAccelDetect={onAccelDetect}
             onCursorChange={onCursorChange}
           />

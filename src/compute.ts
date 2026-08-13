@@ -64,6 +64,38 @@ export function computeFreqFromTransitions(
   return pts;
 }
 
+// 统计光标 A/B 之间的脉冲个数：每个上升沿对应一个脉冲，
+// risingEdges 升序排列，二分查找定位 [min(tA,tB), max(tA,tB)] 区间。
+export function countPulsesBetween(
+  risingEdges: Float64Array,
+  tA: number,
+  tB: number
+): number {
+  if (!risingEdges || risingEdges.length === 0) return 0;
+  const lo = Math.min(tA, tB);
+  const hi = Math.max(tA, tB);
+
+  // 第一个 >= lo 的下标
+  let l = 0;
+  let r = risingEdges.length;
+  while (l < r) {
+    const mid = (l + r) >> 1;
+    if (risingEdges[mid] < lo) l = mid + 1;
+    else r = mid;
+  }
+  const start = l;
+
+  // 第一个 > hi 的下标
+  l = 0;
+  r = risingEdges.length;
+  while (l < r) {
+    const mid = (l + r) >> 1;
+    if (risingEdges[mid] <= hi) l = mid + 1;
+    else r = mid;
+  }
+  return l - start;
+}
+
 export function computeStats(pts: FreqPoint[]): {
   min: number;
   max: number;

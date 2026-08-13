@@ -8,7 +8,7 @@ import {
   fmtTimeShort,
   fmtRate,
 } from '../utils';
-import { detectAccelSegments, computeHistogramBins } from '../compute';
+import { detectAccelSegments, computeHistogramBins, countPulsesBetween } from '../compute';
 
 interface Props {
   allFreqPts: FreqPoint[];
@@ -16,6 +16,7 @@ interface Props {
   cursorB: number | null;
   freqPts: FreqPoint[];
   accelSegs: AccelSegment[];
+  risingEdges: Float64Array | null;
   onAccelDetect: (segs: AccelSegment[]) => void;
   onCursorChange: (which: 'A' | 'B', idx: number | null) => void;
 }
@@ -26,6 +27,7 @@ export function AnalysisPanel({
   cursorB,
   freqPts,
   accelSegs,
+  risingEdges,
   onAccelDetect,
   onCursorChange,
 }: Props) {
@@ -59,6 +61,7 @@ export function AnalysisPanel({
             freqPts={freqPts}
             cursorA={cursorA}
             cursorB={cursorB}
+            risingEdges={risingEdges}
             onCursorChange={onCursorChange}
           />
         )}
@@ -79,15 +82,19 @@ function CursorPane({
   freqPts,
   cursorA,
   cursorB,
+  risingEdges,
   onCursorChange,
 }: {
   freqPts: FreqPoint[];
   cursorA: number | null;
   cursorB: number | null;
+  risingEdges: Float64Array | null;
   onCursorChange: (which: 'A' | 'B', idx: number | null) => void;
 }) {
   const a = cursorA !== null ? freqPts[cursorA] : null;
   const b = cursorB !== null ? freqPts[cursorB] : null;
+  const pulseCount =
+    a && b && risingEdges ? countPulsesBetween(risingEdges, a.time, b.time) : null;
 
   return (
     <div>
@@ -129,6 +136,8 @@ function CursorPane({
                 {fmtTime(b.time - a.time)} &nbsp;
                 <span className="label">Δf=</span>
                 {fmtFreq(Math.abs(b.freq - a.freq))} &nbsp;
+                <span className="label">脉冲数=</span>
+                {pulseCount !== null ? pulseCount.toLocaleString() : '—'} &nbsp;
                 <span className="label">变化率=</span>
                 {fmtRate(
                   b.time - a.time !== 0
