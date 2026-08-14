@@ -1,29 +1,27 @@
 import type { FreqPoint, AccelSegment, FreqMode } from './types';
 
-// 查找第 k 小元素（原地修改数组），用于计算中位数
-function quickselect(arr: number[], k: number): number {
-  let lo = 0;
-  let hi = arr.length - 1;
-  while (lo < hi) {
-    const pivot = arr[(lo + hi) >> 1];
-    let i = lo;
-    let j = hi;
-    while (i <= j) {
-      while (arr[i] < pivot) i++;
-      while (arr[j] > pivot) j--;
-      if (i <= j) {
-        const t = arr[i];
-        arr[i] = arr[j];
-        arr[j] = t;
-        i++;
-        j--;
-      }
+// 停歇间隙判定（仅用于加减速分段切块）：间隔分布中出现 >= GAP_MIN_RATIO 倍的
+// "断层"（如 0.7s 停歇 vs 正常 2.5ms 间隔）时，取断层两值的几何均值作为阈值，
+// 把真实停歇两侧的曲线切成独立块，避免分段跨停歇。
+// 频率点计算不做任何间隙过滤：各格式跳变均为严格 1/0 交替的方波，
+// 脉宽/周期由边沿时间直接界定，过滤只会误伤扫频末端的低速脉冲
+// （固定"中位数×50"在扫频范围宽时会把 316 Hz 慢速脉冲误判为停歇，已弃用）。
+const GAP_MIN_RATIO = 30;
+
+// sorted 为升序间隔数组，返回停歇阈值；分布无断层时返回 Infinity（不过滤）
+function gapThresholdFromSorted(sorted: number[]): number {
+  if (sorted.length < 2) return Infinity;
+  let threshold = Infinity;
+  let prev = sorted[0];
+  for (let i = 1; i < sorted.length; i++) {
+    const cur = sorted[i];
+    if (cur === prev) continue;
+    if (cur / prev >= GAP_MIN_RATIO) {
+      threshold = Math.min(threshold, Math.sqrt(prev * cur));
     }
-    if (k <= j) hi = j;
-    else if (k >= i) lo = i;
-    else return arr[k];
+    prev = cur;
   }
-  return arr[k];
+  return threshold;
 }
 
 export function computeFreqFromTransitions(
@@ -34,24 +32,14 @@ export function computeFreqFromTransitions(
 ): FreqPoint[] {
   if (!transTimes || transTimes.length < 3) return [];
 
-  // pulse 模式：每个高电平脉冲生成一个频率点，跳变对 [t[i], t[i+1]]
-  // 为高电平（transLevels[i] === 1）时，其持续时间 dt 就是脉冲宽度，
-  // freq = 1/(2×dt)，与 PulseView 逻辑分析仪的测量一致。
-  // rising 模式：相邻两个上升沿（transLevels[i] === 1）的间隔 dt 即周期，
-  // freq = 1/dt。
-  // 低电平区间（脉冲间隔/停歇）不生成频率点 —— 一个脉冲就是一个
-  // 数据点，避免把每个脉冲拆成两个半周期点造成阶梯状曲线。
-  // 初始状态/信号停歇产生的异常大间隔识别为间隙并跳过。
-  const dts: number[] = [];
-  for (let i = 1; i < transTimes.length; i++) {
-    const dt = transTimes[i] - transTimes[i - 1];
-    if (dt > 0) dts.push(dt);
-  }
-  if (dts.length < 2) return [];
-
-  // 间隙阈值 = 跳变间隔中位数的 50 倍
-  const gapThreshold = quickselect(dts, dts.length >> 1) * 50;
-
+  // 各格式导出的跳变均为严格 1/0 交替的方波：每个高电平脉冲由相邻的
+  // 上升沿 + 下降沿显式界定，周期由相邻同向边（上升沿对 / 下降沿对）
+  // 显式界定。边沿时间即数据本身，直接计算即可，无需任何间隙过滤。
+  // pulse 模式：每个高电平跳变对 [t[i], t[i+1]] 生成一个频率点，
+  // freq = 1/(2×脉宽)，与 PulseView 逻辑分析仪的测量一致；
+  // 低电平区间不生成频率点，避免把每个脉冲拆成两个半周期点造成阶梯状曲线。
+  // rising 模式：相邻两个上升沿的间隔 dt 即周期（方波交替时与
+  // 相邻下降沿间隔相等），freq = 1/dt，适合占空比变化或窄脉冲信号。
   const pts: FreqPoint[] = [];
   if (freqMode === 'rising') {
     // 收集上升沿索引，相邻上升沿构成一个周期
@@ -63,7 +51,7 @@ export function computeFreqFromTransitions(
       const i = rises[k - 1];
       const j = rises[k];
       const dt = transTimes[j] - transTimes[i];
-      if (dt <= 0 || dt > gapThreshold) continue;
+      if (dt <= 0) continue;
       pts.push({
         time: (transTimes[i] + transTimes[j]) / 2, // 周期中点
         freq: 1 / dt,
@@ -73,10 +61,11 @@ export function computeFreqFromTransitions(
     return pts;
   }
 
+  // pulse 模式：不设间隙阈值，每个高电平脉冲都生成频率点
   for (let i = 0; i < transTimes.length - 1; i++) {
     if (transLevels[i] !== 1) continue; // 只处理高电平（脉冲）跳变对
     const dt = transTimes[i + 1] - transTimes[i];
-    if (dt <= 0 || dt > gapThreshold) continue;
+    if (dt <= 0) continue;
     pts.push({
       time: (transTimes[i] + transTimes[i + 1]) / 2, // 脉冲中点
       freq: 1 / (2 * dt),
@@ -159,14 +148,15 @@ export function detectAccelSegments(pts: FreqPoint[]): AccelSegment[] {
   const n = pts.length;
   if (n < 3) return [];
 
-  // 停歇间隙阈值 = 中位时间间隔 × 50
+  // 停歇间隙阈值：时间间隔分布中的最大断层
   const dts: number[] = [];
   for (let i = 1; i < n; i++) {
     const d = pts[i].time - pts[i - 1].time;
     if (d > 0) dts.push(d);
   }
-  const medianGap = dts.length > 1 ? quickselect(dts.slice(), dts.length >> 1) : 0;
-  const gapThreshold = medianGap * 50;
+  const sorted = dts.sort((a, b) => a - b);
+  const medianGap = sorted.length > 1 ? sorted[sorted.length >> 1] : 0;
+  const gapThreshold = gapThresholdFromSorted(sorted);
 
   // 轻量平滑，仅用于检测（不改变显示数据）
   const sm: number[] = new Array(n);
