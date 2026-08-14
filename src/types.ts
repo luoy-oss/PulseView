@@ -34,6 +34,7 @@ export interface ParseResult {
 export interface AppState {
   samplingRate: number;
   sampleCount: number;
+  pulseCount: number;
   risingEdges: Float64Array | null;
   fallingEdges: Float64Array | null;
   transTimes: Float64Array | null;

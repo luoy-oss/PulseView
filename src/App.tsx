@@ -12,6 +12,7 @@ import SaleaeWorker from './workers/saleaeParser.ts?worker';
 const initialState: AppState = {
   samplingRate: 0,
   sampleCount: 0,
+  pulseCount: 0,
   risingEdges: null,
   fallingEdges: null,
   transTimes: null,
@@ -86,6 +87,12 @@ export function App() {
             return;
           }
 
+          // 总脉冲数：从第一个 1 开始，每个 "1→0"（一个高电平脉冲）计一个脉冲
+          let pulseCount = 0;
+          for (let i = 0; i < transLevels.length - 1; i++) {
+            if (transLevels[i] === 1 && transLevels[i + 1] === 0) pulseCount++;
+          }
+
           setState((prev) => {
             // 按用户当前选择的频率计算模式生成频率点
             const allPts = computeFreqFromTransitions(
@@ -99,6 +106,7 @@ export function App() {
               freqMode: prev.freqMode,
               samplingRate,
               sampleCount,
+              pulseCount,
               risingEdges,
               fallingEdges,
               transTimes,

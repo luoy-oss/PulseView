@@ -4,6 +4,7 @@ import { computeStats } from '../compute';
 
 interface Props {
   samplingRate: number;
+  pulseCount: number;
   risingCount: number;
   fallingCount: number;
   duration: number;
@@ -12,6 +13,7 @@ interface Props {
 
 export function Sidebar({
   samplingRate,
+  pulseCount,
   risingCount,
   fallingCount,
   duration,
@@ -26,6 +28,7 @@ export function Sidebar({
         <StatRow label="采样频率" value={fmtFreq(samplingRate)} cls="accent" />
         <StatRow label="上升沿数" value={risingCount.toLocaleString()} cls="green" />
         <StatRow label="下降沿数" value={fallingCount.toLocaleString()} cls="rose" />
+        <StatRow label="总脉冲数" value={pulseCount.toLocaleString()} cls="accent" />
         <StatRow label="数据时长" value={fmtTime(duration)} />
       </div>
       {stats && (

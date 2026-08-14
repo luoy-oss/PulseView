@@ -60,6 +60,7 @@ export function AppShell({
       <div className="main-layout">
         <Sidebar
           samplingRate={state.samplingRate}
+          pulseCount={state.pulseCount}
           risingCount={risingCount}
           fallingCount={fallingCount}
           duration={dur}
