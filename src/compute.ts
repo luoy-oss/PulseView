@@ -29,7 +29,7 @@ function quickselect(arr: number[], k: number): number {
 export function computeFreqFromTransitions(
   transTimes: Float64Array,
   transLevels: Int8Array,
-  format: 'vcd' | 'txt' | 'sr',
+  format: 'vcd' | 'txt' | 'sr' | 'saleae',
   freqMode: FreqMode = 'pulse'
 ): FreqPoint[] {
   if (!transTimes || transTimes.length < 3) return [];

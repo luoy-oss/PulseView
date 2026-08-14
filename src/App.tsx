@@ -7,6 +7,7 @@ import { detectFormat } from './utils';
 import VcdWorker from './workers/vcdParser.ts?worker';
 import TxtWorker from './workers/txtParser.ts?worker';
 import SrWorker from './workers/srParser.ts?worker';
+import SaleaeWorker from './workers/saleaeParser.ts?worker';
 
 const initialState: AppState = {
   samplingRate: 0,
@@ -49,7 +50,13 @@ export function App() {
       }
 
       const worker =
-        format === 'vcd' ? new VcdWorker() : format === 'sr' ? new SrWorker() : new TxtWorker();
+        format === 'vcd'
+          ? new VcdWorker()
+          : format === 'sr'
+            ? new SrWorker()
+            : format === 'saleae'
+              ? new SaleaeWorker()
+              : new TxtWorker();
       workerRef.current = worker;
 
       worker.onmessage = (e) => {
@@ -66,7 +73,7 @@ export function App() {
           const transLevels: Int8Array = d.transLevels;
           const samplingRate: number = d.samplingRate;
           const sampleCount: number = d.sampleCount;
-          const fmt: 'vcd' | 'txt' | 'sr' = d.format;
+          const fmt: 'vcd' | 'txt' | 'sr' | 'saleae' = d.format;
 
           if (!samplingRate) {
             alert('文件头中未找到采样频率，请检查文件格式。');

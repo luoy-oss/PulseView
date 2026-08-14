@@ -1,6 +1,6 @@
 # PulseView 频率分析器
 
-基于 Web 的逻辑分析仪信号频率分析工具。导入逻辑分析仪导出的 `.vcd` / `.txt` / `.sr` 文件，从信号跳变中重建频率-时间曲线，并提供光标测量、加减速区间自动识别、频率分布统计等分析能力。
+基于 Web 的逻辑分析仪信号频率分析工具。导入逻辑分析仪导出的 `.vcd` / `.txt` / `.sr` / `.bin` / `.csv` 文件，从信号跳变中重建频率-时间曲线，并提供光标测量、加减速区间自动识别、频率分布统计等分析能力。
 
 纯前端实现，所有解析与计算均在浏览器本地完成（Web Worker 后台解析，不阻塞 UI），无需任何后端服务。
 
@@ -23,6 +23,8 @@
 | `.vcd` | Value Change Dump，解析 `$timescale` 时间刻度、`$var` 信号定义，并兼容包含 `Acquisition with N/M channels at X Hz` 注释的导出 |
 | `.txt` | 逻辑分析仪文本导出，逐行解析 `D0:` 行内电平字符（`1`/`"` 高电平，`0`/`.` 低电平，`/` `\` 边沿），从文件头读取采样频率 |
 | `.sr` | sigrok / PulseView 导出格式（zip 容器），解析 `metadata`（采样率、通道数、unitsize）与 `logic-*` 数据块（含多分块 `capturefile-N`），提取 D0（probe1）信号跳变；内置 zip 目录解析与 deflate 解压，无需第三方库 |
+| `.bin` | Saleae Logic 2 数字通道二进制导出（`<SALEAE>` 魔数，logic2-digital 布局）：解析头部初始电平、起止时刻与跳变时间数组，电平按初始值逐次翻转重建完整跳变序列；采样率按最短跳变间隔估计 |
+| `.csv` | Saleae 跳变 CSV 导出：跳过 `Time [s],Channel 0` 表头后逐行解析 `时间,电平` 跳变对 |
 
 ## 快速开始
 
@@ -56,7 +58,7 @@ vercel
 
 ## 使用方法
 
-1. 在首页拖放 `.vcd` / `.txt` / `.sr` 文件，或点击「选择文件」
+1. 在首页拖放 `.vcd` / `.txt` / `.sr` / `.bin` / `.csv` 文件，或点击「选择文件」
 2. 解析完成后自动生成频率-时间曲线
 3. 在曲线图上：
    - **单击** 放置光标 A，**Ctrl+单击** 放置光标 B，底部面板查看测量结果
@@ -78,12 +80,14 @@ PulseView/
     ├── types.ts            # 公共类型定义
     ├── utils.ts            # 频率/时间/变化率格式化、格式检测
     ├── srFormat.ts         # sigrok .sr（zip 容器）格式解析：zip 目录、metadata、deflate 解压、跳变扫描
+    ├── saleaeFormat.ts     # Saleae Logic 2 导出格式解析：.bin 二进制头部与跳变时间、.csv 跳变行
     ├── compute.ts          # 频率计算、统计、加减速分段、直方图算法
     ├── decimate.ts         # 可见窗口数据定位与像素列 min/max 抽稀
     ├── workers/
     │   ├── vcdParser.ts    # VCD 文件解析 Worker
     │   ├── txtParser.ts    # TXT 文件解析 Worker
-    │   └── srParser.ts     # SR 文件解析 Worker（调用 srFormat）
+    │   ├── srParser.ts     # SR 文件解析 Worker（调用 srFormat）
+    │   └── saleaeParser.ts # BIN/CSV 文件解析 Worker（调用 saleaeFormat）
     └── components/
         ├── UploadScreen.tsx    # 文件上传页
         ├── AppShell.tsx        # 主界面布局
