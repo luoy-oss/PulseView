@@ -69,10 +69,13 @@ export function parseSaleaeBinary(u8: Uint8Array): BinaryTransitionData {
   return { initState, beginTime, endTime, times };
 }
 
-// 解析跳变 CSV：跳过表头，逐行读取 (时间, 电平)
+// 解析跳变 CSV：跳过表头，逐行读取 (时间, 电平)。
+// 与 vcd 解析算法统一：仅保留电平变化点（跳变），连续相同电平的行去重
+// （如 Saleae 导出的结束电平行、静默区重复行），保证跳变序列严格 1/0 交替。
 export function parseTransitionsCsv(text: string): { times: number[]; levels: number[] } {
   const times: number[] = [];
   const levels: number[] = [];
+  let prevLevel: number | null = null;
   for (const rawLine of text.split(/\r?\n/)) {
     const line = rawLine.trim();
     if (!line || !/[0-9]/.test(line.charAt(0))) continue;
@@ -81,8 +84,11 @@ export function parseTransitionsCsv(text: string): { times: number[]; levels: nu
     const t = parseFloat(parts[0]);
     const v = parseInt(parts[1], 10);
     if (!isFinite(t)) continue;
+    const lvl = v === 0 ? 0 : 1;
+    if (prevLevel !== null && lvl === prevLevel) continue; // 与 vcd 去重一致
+    prevLevel = lvl;
     times.push(t);
-    levels.push(v === 0 ? 0 : 1);
+    levels.push(lvl);
   }
   if (times.length < 3) {
     throw new Error('CSV 中未检测到足够的信号跳变（至少需要 3 个），请检查文件格式');
