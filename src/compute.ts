@@ -1,4 +1,4 @@
-import type { FreqPoint, AccelSegment, FreqMode } from './types';
+import type { FreqPoint, DerivPoint, AccelSegment, FreqMode } from './types';
 
 // 停歇间隙判定（仅用于加减速分段切块）：间隔分布中出现 >= GAP_MIN_RATIO 倍的
 // "断层"（如 0.7s 停歇 vs 正常 2.5ms 间隔）时，取断层两值的几何均值作为阈值，
@@ -106,6 +106,66 @@ export function countPulsesBetween(
     else r = mid;
   }
   return l - start;
+}
+
+// 从频率-时间曲线计算加速度（一阶导数）与加加速度（二阶导数）。
+// 频率即速度（扫频场景），a = df/dt，j = d²f/dt²。
+// 频率点本身带有测量抖动（高频区相邻点频率差可达 ±0.9%），直接差分会把
+// 抖动放大成远大于真实变化的加速度尖峰，因此先对频率做时间窗移动平均
+// 平滑（窗口取总时长的 0.05%，远小于加减速过渡段，不模糊真实结构；
+// 按时间而非点数取窗，天然不会跨越停歇间隙），再在平滑序列上做中心差分，
+// 端点用前向/后向差分。点数与频率点一一对应（时间轴相同），
+// 便于三个图共享缩放与光标。
+export function computeDerivatives(
+  pts: FreqPoint[]
+): { accel: DerivPoint[]; jerk: DerivPoint[] } {
+  const n = pts.length;
+  if (n < 3) return { accel: [], jerk: [] };
+
+  const totalDur = pts[n - 1].time - pts[0].time;
+  const meanDt = totalDur / n;
+  const tau = Math.max(totalDur / 2000, meanDt * 5);
+  const sm = new Float64Array(n);
+  let lo = 0;
+  let hi = -1;
+  let sum = 0;
+  for (let i = 0; i < n; i++) {
+    const t0 = pts[i].time - tau;
+    const t1 = pts[i].time + tau;
+    while (hi + 1 < n && pts[hi + 1].time <= t1) {
+      hi++;
+      sum += pts[hi].freq;
+    }
+    while (lo <= hi && pts[lo].time < t0) {
+      sum -= pts[lo].freq;
+      lo++;
+    }
+    sm[i] = sum / (hi - lo + 1);
+  }
+
+  const accel = new Array<DerivPoint>(n);
+  for (let i = 0; i < n; i++) {
+    const ip = Math.min(n - 1, i + 1);
+    const im = Math.max(0, i - 1);
+    const dt = pts[ip].time - pts[im].time;
+    accel[i] = {
+      time: pts[i].time,
+      value: dt > 0 ? (sm[ip] - sm[im]) / dt : 0,
+    };
+  }
+
+  const jerk = new Array<DerivPoint>(n);
+  for (let i = 0; i < n; i++) {
+    const ip = Math.min(n - 1, i + 1);
+    const im = Math.max(0, i - 1);
+    const dt = pts[ip].time - pts[im].time;
+    jerk[i] = {
+      time: pts[i].time,
+      value: dt > 0 ? (accel[ip].value - accel[im].value) / dt : 0,
+    };
+  }
+
+  return { accel, jerk };
 }
 
 export function computeStats(pts: FreqPoint[]): {

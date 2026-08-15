@@ -1,4 +1,4 @@
-import type { FreqPoint } from './types';
+import type { FreqPoint, DerivPoint } from './types';
 
 export interface XYPoint {
   x: number;
@@ -12,7 +12,7 @@ export interface ViewRange {
 }
 
 // 第一个 time >= t 的下标
-function lowerBoundTime(pts: FreqPoint[], t: number): number {
+function lowerBoundTime(pts: Array<{ time: number }>, t: number): number {
   let lo = 0;
   let hi = pts.length;
   while (lo < hi) {
@@ -24,7 +24,7 @@ function lowerBoundTime(pts: FreqPoint[], t: number): number {
 }
 
 // 最后一个 time <= t 的下标
-function upperBoundTime(pts: FreqPoint[], t: number): number {
+function upperBoundTime(pts: Array<{ time: number }>, t: number): number {
   let lo = 0;
   let hi = pts.length;
   while (lo < hi) {
@@ -35,17 +35,23 @@ function upperBoundTime(pts: FreqPoint[], t: number): number {
   return lo - 1;
 }
 
-function toXY(p: FreqPoint): XYPoint {
+function toFreqXY(p: FreqPoint): XYPoint {
   return { x: p.time, y: p.freq, period: p.period };
 }
 
+function toDerivXY(p: DerivPoint): XYPoint {
+  return { x: p.time, y: p.value };
+}
+
 /**
- * 构建当前可见时间窗口内用于渲染的数据点。
+ * 构建当前可见时间窗口内用于渲染的数据点（通用实现）。
  * 可见点数超过渲染阈值时，按像素列做 min/max 抽稀，
- * 每个像素列保留该列频率最小值与最大值两个点，包络形状与原图一致。
+ * 每个像素列保留该列纵坐标最小值与最大值两个点，包络形状与原图一致。
  */
-export function buildVisibleData(
-  pts: FreqPoint[],
+function buildVisibleCore<T extends { time: number }>(
+  pts: T[],
+  getValue: (p: T) => number,
+  toPoint: (p: T) => XYPoint,
   viewRange: ViewRange | null,
   widthPx: number
 ): XYPoint[] {
@@ -71,7 +77,7 @@ export function buildVisibleData(
   if (count <= maxRender) {
     const out = new Array<XYPoint>(count);
     for (let i = 0; i < count; i++) {
-      out[i] = toXY(pts[lo + i]);
+      out[i] = toPoint(pts[lo + i]);
     }
     return out;
   }
@@ -80,7 +86,7 @@ export function buildVisibleData(
   const t0 = pts[lo].time;
   const t1 = pts[hi].time;
   const span = t1 - t0;
-  if (span <= 0) return [toXY(pts[lo]), toXY(pts[hi])];
+  if (span <= 0) return [toPoint(pts[lo]), toPoint(pts[hi])];
 
   const out: XYPoint[] = [];
   let bMin = pts[lo];
@@ -89,7 +95,7 @@ export function buildVisibleData(
   const flush = () => {
     const first = bMin.time <= bMax.time ? bMin : bMax;
     const second = bMin.time <= bMax.time ? bMax : bMin;
-    out.push(toXY(first), toXY(second));
+    out.push(toPoint(first), toPoint(second));
   };
   for (let i = lo; i <= hi; i++) {
     const p = pts[i];
@@ -103,10 +109,26 @@ export function buildVisibleData(
       bMin = p;
       bMax = p;
     } else {
-      if (p.freq < bMin.freq) bMin = p;
-      if (p.freq > bMax.freq) bMax = p;
+      if (getValue(p) < getValue(bMin)) bMin = p;
+      if (getValue(p) > getValue(bMax)) bMax = p;
     }
   }
   flush();
   return out;
+}
+
+export function buildVisibleData(
+  pts: FreqPoint[],
+  viewRange: ViewRange | null,
+  widthPx: number
+): XYPoint[] {
+  return buildVisibleCore(pts, (p) => p.freq, toFreqXY, viewRange, widthPx);
+}
+
+export function buildVisibleSeries(
+  pts: DerivPoint[],
+  viewRange: ViewRange | null,
+  widthPx: number
+): XYPoint[] {
+  return buildVisibleCore(pts, (p) => p.value, toDerivXY, viewRange, widthPx);
 }

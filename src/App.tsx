@@ -30,6 +30,10 @@ const initialState: AppState = {
   fileName: '',
   format: 'txt',
   freqMode: 'pulse',
+  showDerivs: false,
+  showFreqChart: true,
+  showAccelChart: false,
+  showJerkChart: false,
 };
 
 export function App() {
@@ -201,6 +205,42 @@ export function App() {
     }));
   }, []);
 
+  // 导数视图开关：单图模式或全部图被关闭时点击 → 开启并全部显示；
+  // 多图模式且至少一个图可见时点击 → 退出回到仅频率图
+  const toggleDerivView = useCallback(() => {
+    setState((prev) => {
+      const anyVisible =
+        prev.showFreqChart || prev.showAccelChart || prev.showJerkChart;
+      if (!prev.showDerivs || !anyVisible) {
+        return {
+          ...prev,
+          showDerivs: true,
+          showFreqChart: true,
+          showAccelChart: true,
+          showJerkChart: true,
+        };
+      }
+      return {
+        ...prev,
+        showDerivs: false,
+        showFreqChart: true,
+        showAccelChart: false,
+        showJerkChart: false,
+      };
+    });
+  }, []);
+
+  const toggleChartVisible = useCallback((key: 'freq' | 'accel' | 'jerk') => {
+    setState((prev) => ({
+      ...prev,
+      showFreqChart:
+        key === 'freq' ? !prev.showFreqChart : prev.showFreqChart,
+      showAccelChart:
+        key === 'accel' ? !prev.showAccelChart : prev.showAccelChart,
+      showJerkChart: key === 'jerk' ? !prev.showJerkChart : prev.showJerkChart,
+    }));
+  }, []);
+
   if (!state.samplingRate && !parsing) {
     return <UploadScreen onFile={handleFile} />;
   }
@@ -219,6 +259,8 @@ export function App() {
       onRangeModeChange={setRangeMode}
       onRangeChange={setRange}
       onClearRange={clearRange}
+      onToggleDerivView={toggleDerivView}
+      onToggleChart={toggleChartVisible}
     />
   );
 }

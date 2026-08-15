@@ -4,6 +4,12 @@ export interface FreqPoint {
   period?: number;
 }
 
+// 导数曲线点：value 为加速度（Hz/s）或加加速度（Hz/s²）
+export interface DerivPoint {
+  time: number;
+  value: number;
+}
+
 export interface Transition {
   time_s: number;
   level: 0 | 1;
@@ -52,4 +58,9 @@ export interface AppState {
   fileName: string;
   format: 'vcd' | 'txt' | 'sr' | 'saleae';
   freqMode: FreqMode;
+  // 多图视图：导数视图开关 + 各图可见性（默认只显示频率图）
+  showDerivs: boolean;
+  showFreqChart: boolean;
+  showAccelChart: boolean;
+  showJerkChart: boolean;
 }

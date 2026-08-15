@@ -10,6 +10,8 @@ interface Props {
   onRangeModeChange: (mode: boolean) => void;
   rangeMode: boolean;
   onResetZoom: () => void;
+  showDerivs: boolean;
+  onToggleDerivView: () => void;
 }
 
 export function Header({
@@ -21,6 +23,8 @@ export function Header({
   onRangeModeChange,
   rangeMode,
   onResetZoom,
+  showDerivs,
+  onToggleDerivView,
 }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -70,6 +74,13 @@ export function Header({
             上升沿周期
           </button>
         </div>
+        <button
+          className={`btn ${showDerivs ? 'btn-p' : ''}`}
+          title="同步显示频率、加速度（频率变化率）与加加速度三个图，各图可单独关闭"
+          onClick={onToggleDerivView}
+        >
+          导数视图
+        </button>
         <button
           className={`btn ${rangeMode ? 'btn-p' : ''}`}
           onClick={() => onRangeModeChange(!rangeMode)}

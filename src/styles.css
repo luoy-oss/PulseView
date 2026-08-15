@@ -498,6 +498,102 @@ body {
   height: 100% !important;
 }
 
+/* ===== DERIVATIVE VIEW（多图同步视图）===== */
+.deriv-view {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-height: 0;
+  padding: 4px 8px 4px 4px;
+}
+
+.deriv-panel {
+  flex: 1;
+  min-height: 120px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+}
+
+.deriv-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 12px;
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--bg-warm);
+  flex-shrink: 0;
+}
+
+.deriv-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-2);
+  letter-spacing: 0.3px;
+}
+
+.deriv-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.deriv-dot.freq {
+  background: #d4a24e;
+}
+
+.deriv-dot.accel {
+  background: #7ec699;
+}
+
+.deriv-dot.jerk {
+  background: #4ecdc4;
+}
+
+.deriv-close {
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: 5px;
+  color: var(--text-3);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.deriv-close:hover {
+  color: var(--rose);
+  background: var(--rose-dim);
+}
+
+.deriv-panel .chart-wrap {
+  flex: 1;
+  min-height: 0;
+  padding: 2px 8px 2px 0;
+}
+
+.deriv-empty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-3);
+  font-size: 12px;
+}
+
 /* ===== BOTTOM PANEL ===== */
 .ana-panel {
   height: 240px;

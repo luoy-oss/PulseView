@@ -39,6 +39,8 @@ interface Props {
   rangeStart: number | null;
   rangeEnd: number | null;
   accelSegs: AccelSegment[];
+  viewRange: ViewRange | null;
+  onViewRangeChange: (r: ViewRange | null) => void;
   onCursorChange: (which: 'A' | 'B', idx: number | null) => void;
   onRangeModeChange: (mode: boolean) => void;
   onRangeChange: (
@@ -49,6 +51,8 @@ interface Props {
   ) => void;
   onClearRange: () => void;
   resetZoomRef?: React.MutableRefObject<() => void>;
+  onResetZoomReady?: (fn: () => void) => void;
+  showToolbar?: boolean;
 }
 
 export function FreqChart({
@@ -61,33 +65,37 @@ export function FreqChart({
   rangeStart,
   rangeEnd,
   accelSegs,
+  viewRange,
+  onViewRangeChange,
   onCursorChange,
   onRangeModeChange,
   onRangeChange,
   onClearRange,
   resetZoomRef,
+  onResetZoomReady,
+  showToolbar = true,
 }: Props) {
   const chartRef = useRef<Chart<'scatter', ScatterDataPoint[]> | null>(null);
   const dragRef = useRef({ dragging: false, startX: 0 });
 
-  // 当前可见时间窗口（缩放/平移后由图表更新回调同步）
-  const [viewRange, setViewRange] = useState<ViewRange | null>(null);
   // 图表实际像素宽度，用于按像素列做 min/max 抽稀
   const [chartWidth, setChartWidth] = useState(1200);
 
   // 每次图表更新后同步可见范围，覆盖滚轮缩放、平移、重置等所有路径；
   // 该值同时用于：1) 写回 options.scales.x.min/max 使缩放状态在 React 重渲染后不丢失
-  // 2) 定位可见数据区间做抽稀
+  // 2) 定位可见数据区间做抽稀。多个导数图共享同一 viewRange，实现同步缩放；
+  // 与上次记录比较，无实质变化时不通知父级，避免受控状态下的循环重渲染
+  const lastViewRef = useRef<ViewRange | null>(null);
   const viewSyncRef = useRef<(min: number, max: number) => void>(() => {});
   useEffect(() => {
     viewSyncRef.current = (min, max) => {
-      setViewRange((prev) => {
-        if (!prev) return { min, max };
+      const prev = lastViewRef.current;
+      if (prev) {
         const tol = (Math.abs(min) + Math.abs(max) + 1) * 1e-9;
-        return Math.abs(prev.min - min) < tol && Math.abs(prev.max - max) < tol
-          ? prev
-          : { min, max };
-      });
+        if (Math.abs(prev.min - min) < tol && Math.abs(prev.max - max) < tol) return;
+      }
+      lastViewRef.current = { min, max };
+      onViewRangeChange({ min, max });
     };
   });
   const viewSyncPlugin = useMemo<Plugin<'scatter'>>(
@@ -103,21 +111,26 @@ export function FreqChart({
     []
   );
 
-  // 数据变化（重新载入文件）时重置可见范围
+  // 数据变化（重新载入文件 / 切换频率模式）时重置可见范围
   useEffect(() => {
-    setViewRange(null);
+    lastViewRef.current = null;
+    onViewRangeChange(null);
   }, [freqPts]);
 
   // Register resetZoom callback
   useEffect(() => {
-    if (resetZoomRef) {
-      resetZoomRef.current = () => {
-        const chart = chartRef.current;
-        if (chart) chart.resetZoom();
-        setViewRange(null);
-      };
+    const doReset = () => {
+      const chart = chartRef.current;
+      if (chart) chart.resetZoom();
+      lastViewRef.current = null;
+      onViewRangeChange(null);
+    };
+    if (onResetZoomReady) {
+      onResetZoomReady(doReset);
+    } else if (resetZoomRef) {
+      resetZoomRef.current = doReset;
     }
-  }, [resetZoomRef]);
+  }, [resetZoomRef, onResetZoomReady, onViewRangeChange]);
 
   // 开发环境暴露图表实例，便于自动化验证
   useEffect(() => {
@@ -422,43 +435,45 @@ export function FreqChart({
 
   return (
     <>
-      <div className="chart-toolbar">
-        <div className="chart-toolbar-l">
-          {rangeStart !== null && rangeEnd !== null && (
-            <span className="range-badge">
-              <span className="dot" />
-              选区 {fmtTimeShort(Math.min(rangeStart, rangeEnd))} →{' '}
-              {fmtTimeShort(Math.max(rangeStart, rangeEnd))} ({rangeCount.toLocaleString()}点)
-            </span>
-          )}
+      {showToolbar && (
+        <div className="chart-toolbar">
+          <div className="chart-toolbar-l">
+            {rangeStart !== null && rangeEnd !== null && (
+              <span className="range-badge">
+                <span className="dot" />
+                选区 {fmtTimeShort(Math.min(rangeStart, rangeEnd))} →{' '}
+                {fmtTimeShort(Math.max(rangeStart, rangeEnd))} ({rangeCount.toLocaleString()}点)
+              </span>
+            )}
+          </div>
+          <div className="chart-toolbar-r">
+            {rangeStart !== null && rangeEnd !== null && (
+              <>
+                <button className="btn btn-sm" onClick={onClearRange}>
+                  清除选区
+                </button>
+                <button
+                  className="btn btn-p btn-sm"
+                  onClick={() => {
+                    const rs = Math.min(rangeStart, rangeEnd);
+                    const re = Math.max(rangeStart, rangeEnd);
+                    const idxS = allFreqPts.findIndex((p) => p.time >= rs);
+                    const idxE = (() => {
+                      for (let i = allFreqPts.length - 1; i >= 0; i--) {
+                        if (allFreqPts[i].time <= re) return i;
+                      }
+                      return 0;
+                    })();
+                    exportCSV(allFreqPts.slice(idxS, idxE + 1), 'frequency_range.csv');
+                  }}
+                >
+                  导出选区
+                </button>
+              </>
+            )}
+          </div>
         </div>
-        <div className="chart-toolbar-r">
-          {rangeStart !== null && rangeEnd !== null && (
-            <>
-              <button className="btn btn-sm" onClick={onClearRange}>
-                清除选区
-              </button>
-              <button
-                className="btn btn-p btn-sm"
-                onClick={() => {
-                  const rs = Math.min(rangeStart, rangeEnd);
-                  const re = Math.max(rangeStart, rangeEnd);
-                  const idxS = allFreqPts.findIndex((p) => p.time >= rs);
-                  const idxE = (() => {
-                    for (let i = allFreqPts.length - 1; i >= 0; i--) {
-                      if (allFreqPts[i].time <= re) return i;
-                    }
-                    return 0;
-                  })();
-                  exportCSV(allFreqPts.slice(idxS, idxE + 1), 'frequency_range.csv');
-                }}
-              >
-                导出选区
-              </button>
-            </>
-          )}
-        </div>
-      </div>
+      )}
       <div className="chart-wrap">
         <ReactChart
           ref={chartRef as never}
