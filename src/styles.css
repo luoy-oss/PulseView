@@ -834,3 +834,16 @@ body {
   font-family: var(--fx);
   letter-spacing: 0.3px;
 }
+
+.status-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.version-badge {
+  font-family: var(--fx);
+  color: var(--text-2);
+  letter-spacing: 0.3px;
+  cursor: default;
+}
