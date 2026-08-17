@@ -39,7 +39,7 @@ export function computeFreqFromTransitions(
   // 显式界定。边沿时间即数据本身，直接计算即可，无需任何间隙过滤。
   // pulse 模式：每个高电平脉冲生成一个频率点，横坐标取该脉冲的上升沿时刻；
   // rising 模式：相邻两个上升沿的间隔 dt 即周期（方波交替时与
-  // 相邻下降沿间隔相等），freq = 1/dt，频率点同样按上升沿时刻绘制；
+  // 相邻下降沿间隔相等），freq = 1/dt，频率点按周期终点上升沿时刻绘制；
   // falling 模式（默认）：以相邻下降沿为周期边界，freq = 1/(fall[n] - fall[n-1])，
   // 时间点取相邻两下降沿的中点；首个脉冲无前序下降沿，以第一个上升沿为
   // 时间起点并默认 50% 占空比（VCD 数据从有效上升沿开始具体时间，
@@ -55,9 +55,26 @@ export function computeFreqFromTransitions(
 
   const pts: FreqPoint[] = [];
   if (freqMode === 'rising') {
-    // 相邻上升沿构成一个周期，freq = 1/dt；
-    // 横坐标取该周期终点上升沿时刻，与 pulse 模式的时间戳（脉冲上升沿）对齐
-    for (let k = 1; k < rises.length; k++) {
+    // 上升沿周期模式：相邻上升沿构成一个周期，freq = 1/dt；
+    // 横坐标取该周期终点上升沿时刻。
+    // VCD 数据从有效上升沿开始具体时间，首脉冲（第一份数据 R0→F0）之前
+    // 无前序上升沿可参照，R0→R1 周期会混入首脉冲的宽脉冲而失真
+    // （如 4.vcd 中 R0→R1=502µs 使首个频率点低至 1991Hz，偏离真实扫频
+    // 起点 ~3400Hz），必须抛开：首脉冲固定按 50% 占空比口径计算
+    // （freq = 1/(2×脉宽)，period = 2×脉宽），周期从第二个上升沿对开始。
+    if (rises.length < 2) return pts;
+    if (rises[0] + 1 < transTimes.length) {
+      const w0 = transTimes[rises[0] + 1] - transTimes[rises[0]]; // 首脉冲脉宽
+      if (w0 > 0) {
+        pts.push({
+          time: transTimes[rises[0]], // 首脉冲上升沿时刻
+          freq: 1 / (2 * w0), // 默认 50% 占空比
+          period: 2 * w0,
+          dutyCycle: 0.5,
+        });
+      }
+    }
+    for (let k = 2; k < rises.length; k++) {
       const i = rises[k - 1];
       const j = rises[k];
       const dt = transTimes[j] - transTimes[i];
