@@ -69,22 +69,65 @@ export function parseSaleaeBinary(u8: Uint8Array): BinaryTransitionData {
   return { initState, beginTime, endTime, times };
 }
 
-// 解析跳变 CSV：跳过表头，逐行读取 (时间, 电平)。
+// 解析跳变 CSV：自动识别表头/注释行，逐行读取 (时间, 电平)。
+// 兼容多种软件导出的格式：
+//   - Saleae：表头 "Time [s],Channel 0"，每行 "时间,电平"（2 列）；
+//   - sigrok（跳变导出）：";" 注释 + "SystemTime, Time(s), Channel 0" 表头，
+//     每行 "'系统时间戳,相对时间,电平"（3 列，时间在第 2 列）。
+// 识别规则：时间列取第一个严格数值列，电平列取其后的 0/1 列；
+// 表头/注释行（无可解析数值）自动跳过。
 // 与 vcd 解析算法统一：仅保留电平变化点（跳变），连续相同电平的行去重
 // （如 Saleae 导出的结束电平行、静默区重复行），保证跳变序列严格 1/0 交替。
-export function parseTransitionsCsv(text: string): { times: number[]; levels: number[] } {
+export function parseTransitionsCsv(text: string): {
+  times: number[];
+  levels: number[];
+  samplingRate: number | null;
+} {
   const times: number[] = [];
   const levels: number[] = [];
   let prevLevel: number | null = null;
+  let samplingRate: number | null = null;
   for (const rawLine of text.split(/\r?\n/)) {
     const line = rawLine.trim();
-    if (!line || !/[0-9]/.test(line.charAt(0))) continue;
+    if (!line) continue;
+    // 注释行：";"（sigrok 头部，含采样率声明）、"#" 等
+    if (line.startsWith(';')) {
+      const m = line.match(/Sample rate:\s*([0-9.]+)\s*([kMG])?Hz/i);
+      if (m) {
+        const base = parseFloat(m[1]);
+        const unit = m[2]?.toUpperCase();
+        samplingRate =
+          unit === 'k' ? base * 1e3 : unit === 'M' ? base * 1e6 : unit === 'G' ? base * 1e9 : base;
+      }
+      continue;
+    }
+    if (line.startsWith('#')) continue;
     const parts = line.split(',');
-    if (parts.length < 2) continue;
-    const t = parseFloat(parts[0]);
-    const v = parseInt(parts[1], 10);
-    if (!isFinite(t)) continue;
-    const lvl = v === 0 ? 0 : 1;
+    // 严格数值解析：剥离引号后整列必须是合法数字，
+    // 避免把 "2026-08-17 09:07:32..." 系统时间戳误解析为数值列
+    const nums = parts.map((p) => {
+      const c = p.trim().replace(/^['"]|['"]$/g, '');
+      return /^[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?$/.test(c) ? parseFloat(c) : NaN;
+    });
+    // 时间列 = 第一个数值列；电平列 = 其后第一个 0/1 列
+    let tIdx = -1;
+    for (let i = 0; i < nums.length; i++) {
+      if (isFinite(nums[i])) {
+        tIdx = i;
+        break;
+      }
+    }
+    if (tIdx < 0) continue; // 表头或非数据行
+    let lvlIdx = -1;
+    for (let i = tIdx + 1; i < nums.length; i++) {
+      if (nums[i] === 0 || nums[i] === 1) {
+        lvlIdx = i;
+        break;
+      }
+    }
+    if (lvlIdx < 0) continue;
+    const t = nums[tIdx];
+    const lvl = nums[lvlIdx] === 0 ? 0 : 1;
     if (prevLevel !== null && lvl === prevLevel) continue; // 与 vcd 去重一致
     prevLevel = lvl;
     times.push(t);
@@ -93,7 +136,7 @@ export function parseTransitionsCsv(text: string): { times: number[]; levels: nu
   if (times.length < 3) {
     throw new Error('CSV 中未检测到足够的信号跳变（至少需要 3 个），请检查文件格式');
   }
-  return { times, levels };
+  return { times, levels, samplingRate };
 }
 
 // 二进制跳变时间 → 完整跳变序列（补上 begin 初始电平与 end 结束电平，
@@ -133,6 +176,7 @@ function estimateSamplingRate(times: number[]): number {
 export function parseSaleaeFile(u8: Uint8Array): SaleaeParseResult {
   let times: number[];
   let levels: number[];
+  let headerRate: number | null = null;
 
   if (u8.length >= 8 && new TextDecoder('ascii').decode(u8.subarray(0, 8)) === '<SALEAE>') {
     const data = parseSaleaeBinary(u8);
@@ -144,9 +188,12 @@ export function parseSaleaeFile(u8: Uint8Array): SaleaeParseResult {
     const csv = parseTransitionsCsv(text);
     times = csv.times;
     levels = csv.levels;
+    headerRate = csv.samplingRate;
   }
 
-  const samplingRate = estimateSamplingRate(times);
+  // 优先采用文件头声明的采样率（如 sigrok 的 "; Sample rate: 1 MHz"），
+  // 否则按跳变最短间隔兜底估计
+  const samplingRate = headerRate ?? estimateSamplingRate(times);
   const sampleCount = times.length;
 
   const risingArr: number[] = [];
