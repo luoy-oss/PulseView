@@ -274,6 +274,13 @@ body {
   border-radius: calc(var(--radius-sm) - 2px);
 }
 
+.freq-mode-group .btn input[type='checkbox'] {
+  margin-right: 5px;
+  accent-color: var(--accent);
+  vertical-align: -1px;
+  cursor: pointer;
+}
+
 .ctrl-label {
   font-size: 11px;
   color: var(--text-3);

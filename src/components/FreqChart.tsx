@@ -327,10 +327,22 @@ export function FreqChart({
             title: (items) =>
               items.length ? '时间  ' + fmtTime(items[0].parsed.x ?? 0) : '',
             label: (item) => {
-              const raw = item.raw as { period?: number } | undefined;
+              const raw = item.raw as
+                | { period?: number; dutyCycle?: number }
+                | undefined;
               const text = '频率  ' + fmtFreq(item.parsed.y ?? 0);
-              if (!raw?.period) return text;
-              return text + ' · ' + (freqMode === 'rising' ? '周期 ' : '脉宽 ') + fmtTime(raw.period);
+              if (!raw) return text;
+              let suffix = '';
+              if (raw.period) {
+                suffix +=
+                  ' · ' +
+                  (freqMode === 'rising' ? '周期 ' : '脉宽 ') +
+                  fmtTime(raw.period);
+              }
+              if (raw.dutyCycle !== undefined) {
+                suffix += ' · 占空比 ' + (raw.dutyCycle * 100).toFixed(1) + '%';
+              }
+              return text + suffix;
             },
           },
         },

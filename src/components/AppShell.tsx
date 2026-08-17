@@ -13,6 +13,7 @@ interface Props {
   state: AppState;
   onFile: (file: File) => void;
   onFreqModeChange: (mode: FreqMode) => void;
+  onDutyCorrectChange: (on: boolean) => void;
   onAccelDetect: (segs: AccelSegment[]) => void;
   onCursorChange: (which: 'A' | 'B', idx: number | null) => void;
   onRangeModeChange: (mode: boolean) => void;
@@ -31,6 +32,7 @@ export function AppShell({
   state,
   onFile,
   onFreqModeChange,
+  onDutyCorrectChange,
   onAccelDetect,
   onCursorChange,
   onRangeModeChange,
@@ -59,6 +61,8 @@ export function AppShell({
         fileName={state.fileName}
         allFreqPts={state.allFreqPts}
         freqMode={state.freqMode}
+        dutyCorrect={state.dutyCorrect}
+        onDutyCorrectChange={onDutyCorrectChange}
         onFreqModeChange={onFreqModeChange}
         onFile={onFile}
         onRangeModeChange={onRangeModeChange}

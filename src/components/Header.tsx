@@ -5,6 +5,8 @@ interface Props {
   fileName: string;
   allFreqPts: FreqPoint[];
   freqMode: FreqMode;
+  dutyCorrect: boolean;
+  onDutyCorrectChange: (on: boolean) => void;
   onFreqModeChange: (mode: FreqMode) => void;
   onFile: (file: File) => void;
   onRangeModeChange: (mode: boolean) => void;
@@ -18,6 +20,8 @@ export function Header({
   fileName,
   allFreqPts,
   freqMode,
+  dutyCorrect,
+  onDutyCorrectChange,
   onFreqModeChange,
   onFile,
   onRangeModeChange,
@@ -61,7 +65,7 @@ export function Header({
         <div className="freq-mode-group">
           <button
             className={`btn btn-sm ${freqMode === 'pulse' ? 'btn-p' : ''}`}
-            title="每个高电平脉冲生成一个频率点：freq = 1 / (2 × 脉宽)"
+            title="每个高电平脉冲生成一个频率点：freq = 1 / (2 × 脉宽)，等价于假设占空比 50%"
             onClick={() => onFreqModeChange('pulse')}
           >
             脉冲宽度
@@ -73,6 +77,17 @@ export function Header({
           >
             上升沿周期
           </button>
+          <label
+            className={`btn btn-sm ${dutyCorrect ? 'btn-p' : ''}`}
+            title="按实际占空比修正脉冲宽度频率：freq = 1/(2×脉宽) × (占空比/50%) = 1/周期，适合窄脉冲/占空比变化的信号；勾选后默认的 50% 占空比假设不再成立"
+          >
+            <input
+              type="checkbox"
+              checked={dutyCorrect}
+              onChange={(e) => onDutyCorrectChange(e.target.checked)}
+            />
+            占空比修正
+          </label>
         </div>
         <button
           className={`btn ${showDerivs ? 'btn-p' : ''}`}

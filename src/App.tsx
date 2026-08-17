@@ -30,6 +30,7 @@ const initialState: AppState = {
   fileName: '',
   format: 'txt',
   freqMode: 'pulse',
+  dutyCorrect: false,
   showDerivs: false,
   showFreqChart: true,
   showAccelChart: false,
@@ -98,16 +99,18 @@ export function App() {
           }
 
           setState((prev) => {
-            // 按用户当前选择的频率计算模式生成频率点
+            // 按用户当前选择的频率计算模式与占空比修正选项生成频率点
             const allPts = computeFreqFromTransitions(
               transTimes,
               transLevels,
               fmt,
-              prev.freqMode
+              prev.freqMode,
+              prev.dutyCorrect
             );
             return {
               ...initialState,
               freqMode: prev.freqMode,
+              dutyCorrect: prev.dutyCorrect,
               samplingRate,
               sampleCount,
               pulseCount,
@@ -141,7 +144,8 @@ export function App() {
         prev.transTimes,
         prev.transLevels,
         prev.format,
-        mode
+        mode,
+        prev.dutyCorrect
       );
       return {
         ...prev,
@@ -149,6 +153,31 @@ export function App() {
         allFreqPts: allPts,
         freqPts: allPts,
         // 频率点序列变化后，光标索引/分段/框选索引均失效，重置分析状态
+        cursorA: null,
+        cursorB: null,
+        accelSegs: [],
+        rangeDataIdxStart: null,
+        rangeDataIdxEnd: null,
+      };
+    });
+  }, []);
+
+  // 占空比修正开关：勾选后脉冲宽度模式按实际占空比修正频率（freq = 1/周期）
+  const updateDutyCorrect = useCallback((on: boolean) => {
+    setState((prev) => {
+      if (!prev.transTimes || !prev.transLevels) return { ...prev, dutyCorrect: on };
+      const allPts = computeFreqFromTransitions(
+        prev.transTimes,
+        prev.transLevels,
+        prev.format,
+        prev.freqMode,
+        on
+      );
+      return {
+        ...prev,
+        dutyCorrect: on,
+        allFreqPts: allPts,
+        freqPts: allPts,
         cursorA: null,
         cursorB: null,
         accelSegs: [],
@@ -254,6 +283,7 @@ export function App() {
       state={state}
       onFile={handleFile}
       onFreqModeChange={updateFreqMode}
+      onDutyCorrectChange={updateDutyCorrect}
       onAccelDetect={updateAccelSegs}
       onCursorChange={updateCursor}
       onRangeModeChange={setRangeMode}

@@ -28,7 +28,8 @@ export function computeFreqFromTransitions(
   transTimes: Float64Array,
   transLevels: Int8Array,
   format: 'vcd' | 'txt' | 'sr' | 'saleae',
-  freqMode: FreqMode = 'pulse'
+  freqMode: FreqMode = 'pulse',
+  dutyCorrect = false
 ): FreqPoint[] {
   if (!transTimes || transTimes.length < 3) return [];
 
@@ -36,7 +37,8 @@ export function computeFreqFromTransitions(
   // 上升沿 + 下降沿显式界定，周期由相邻同向边（上升沿对 / 下降沿对）
   // 显式界定。边沿时间即数据本身，直接计算即可，无需任何间隙过滤。
   // pulse 模式：每个高电平跳变对 [t[i], t[i+1]] 生成一个频率点，
-  // freq = 1/(2×脉宽)，与 PulseView 逻辑分析仪的测量一致；
+  // freq = 1/周期（相邻上升沿间隔），对 50% 占空比方波与 1/(2×脉宽) 等价，
+  // 对窄脉冲/占空比变化信号给出真实周期频率；
   // 低电平区间不生成频率点，避免把每个脉冲拆成两个半周期点造成阶梯状曲线。
   // rising 模式：相邻两个上升沿的间隔 dt 即周期（方波交替时与
   // 相邻下降沿间隔相等），freq = 1/dt，适合占空比变化或窄脉冲信号。
@@ -61,15 +63,32 @@ export function computeFreqFromTransitions(
     return pts;
   }
 
-  // pulse 模式：不设间隙阈值，每个高电平脉冲都生成频率点
-  for (let i = 0; i < transTimes.length - 1; i++) {
-    if (transLevels[i] !== 1) continue; // 只处理高电平（脉冲）跳变对
-    const dt = transTimes[i + 1] - transTimes[i];
-    if (dt <= 0) continue;
+  // pulse 模式：每个高电平跳变对 [t[i], t[i+1]] 生成一个频率点，
+  // 默认频率口径 freq = 1/(2×脉宽)（等价于假设占空比 50%，与逻辑分析仪
+  // 测量一致）；低电平区间不生成频率点，避免把每个脉冲拆成两个半周期点
+  // 造成阶梯状曲线。
+  // 每个点同时计算真实占空比 dutyCycle = 脉宽/周期（周期 = 相邻上升沿间隔），
+  // 供显示与占空比修正使用。dutyCorrect 开启时改用占空比修正频率：
+  // freq = 1/(2×脉宽) × (占空比/50%) = 1/周期，对窄脉冲/占空比变化的信号
+  // （如 sigrok 导出的 PWM、占空比扫掠）给出真实周期频率，否则 22µs 窄脉冲
+  // 会被算成 22.7kHz 而真实周期频率仅约 500Hz。
+  const rises: number[] = [];
+  for (let i = 0; i < transTimes.length; i++) {
+    if (transLevels[i] === 1) rises.push(i);
+  }
+  for (let k = 0; k < rises.length; k++) {
+    const i = rises[k];
+    if (i + 1 >= transTimes.length) continue; // 缺下降沿（悬空高电平结尾）
+    const w = transTimes[i + 1] - transTimes[i]; // 高电平脉宽
+    if (w <= 0) continue;
+    const period =
+      k + 1 < rises.length ? transTimes[rises[k + 1]] - transTimes[i] : 2 * w;
+    const duty = period > 0 ? w / period : 0.5;
     pts.push({
       time: (transTimes[i] + transTimes[i + 1]) / 2, // 脉冲中点
-      freq: 1 / (2 * dt),
-      period: dt, // 脉冲持续时间（高电平宽度）
+      freq: dutyCorrect ? 1 / period : 1 / (2 * w),
+      period: w, // 高电平脉宽
+      dutyCycle: duty,
     });
   }
 

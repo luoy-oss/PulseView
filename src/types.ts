@@ -2,6 +2,8 @@ export interface FreqPoint {
   time: number;
   freq: number;
   period?: number;
+  // 占空比（0~1）：高电平脉宽 / 周期，pulse 模式计算并显示
+  dutyCycle?: number;
 }
 
 // 导数曲线点：value 为加速度（Hz/s）或加加速度（Hz/s²）
@@ -15,7 +17,7 @@ export interface Transition {
   level: 0 | 1;
 }
 
-// 频率计算模式：pulse = 高电平脉冲宽度（freq=1/(2×脉宽)，默认）；
+// 频率计算模式：pulse = 高电平脉冲宽度（freq=1/(2×脉宽)，默认，等价于假设占空比 50%）；
 // rising = 相邻两个上升沿的周期（freq=1/周期）
 export type FreqMode = 'pulse' | 'rising';
 
@@ -58,6 +60,9 @@ export interface AppState {
   fileName: string;
   format: 'vcd' | 'txt' | 'sr' | 'saleae';
   freqMode: FreqMode;
+  // 占空比修正：勾选后脉冲宽度模式按 freq = 1/(2×脉宽) × (占空比/50%) = 1/周期 计算，
+  // 对窄脉冲/占空比变化信号给出真实周期频率；默认关闭（按 50% 占空比假设）
+  dutyCorrect: boolean;
   // 多图视图：导数视图开关 + 各图可见性（默认只显示频率图）
   showDerivs: boolean;
   showFreqChart: boolean;
