@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { AppState, AccelSegment, FreqMode } from '../types';
+import { AppState, AccelSegment, EdgeBase, FreqMode } from '../types';
 import { Header } from './Header';
 import { Sidebar } from './Sidebar';
 import { FreqChart } from './FreqChart';
@@ -14,6 +14,7 @@ interface Props {
   onFile: (file: File) => void;
   onFreqModeChange: (mode: FreqMode) => void;
   onDutyCorrectChange: (on: boolean) => void;
+  onEdgeBaseChange: (base: EdgeBase) => void;
   onAccelDetect: (segs: AccelSegment[]) => void;
   onCursorChange: (which: 'A' | 'B', idx: number | null) => void;
   onRangeModeChange: (mode: boolean) => void;
@@ -33,6 +34,7 @@ export function AppShell({
   onFile,
   onFreqModeChange,
   onDutyCorrectChange,
+  onEdgeBaseChange,
   onAccelDetect,
   onCursorChange,
   onRangeModeChange,
@@ -62,7 +64,9 @@ export function AppShell({
         allFreqPts={state.allFreqPts}
         freqMode={state.freqMode}
         dutyCorrect={state.dutyCorrect}
+        edgeBase={state.edgeBase}
         onDutyCorrectChange={onDutyCorrectChange}
+        onEdgeBaseChange={onEdgeBaseChange}
         onFreqModeChange={onFreqModeChange}
         onFile={onFile}
         onRangeModeChange={onRangeModeChange}

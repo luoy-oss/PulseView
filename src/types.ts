@@ -21,6 +21,10 @@ export interface Transition {
 // rising = 相邻两个上升沿的周期（freq=1/周期）
 export type FreqMode = 'pulse' | 'rising';
 
+// 占空比/周期计算的基准边沿：falling = 相邻两脉冲下降沿间隔（默认），
+// rising = 相邻两脉冲上升沿间隔
+export type EdgeBase = 'falling' | 'rising';
+
 export interface AccelSegment {
   type: 'accel' | 'decel' | 'const';
   startTime: number;
@@ -63,6 +67,8 @@ export interface AppState {
   // 占空比修正：勾选后脉冲宽度模式按 freq = 1/(2×脉宽) × (占空比/50%) = 1/周期 计算，
   // 对窄脉冲/占空比变化信号给出真实周期频率；默认关闭（按 50% 占空比假设）
   dutyCorrect: boolean;
+  // 占空比/周期计算的基准边沿（默认下降沿，可切换上升沿）
+  edgeBase: EdgeBase;
   // 多图视图：导数视图开关 + 各图可见性（默认只显示频率图）
   showDerivs: boolean;
   showFreqChart: boolean;

@@ -281,6 +281,12 @@ body {
   cursor: pointer;
 }
 
+.freq-mode-group .edge-base-label {
+  color: var(--text-3);
+  cursor: default;
+  padding: 5px 6px;
+}
+
 .ctrl-label {
   font-size: 11px;
   color: var(--text-3);

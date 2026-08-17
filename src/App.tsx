@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef } from 'react';
 import { UploadScreen } from './components/UploadScreen';
 import { AppShell } from './components/AppShell';
-import { AccelSegment, AppState, FreqMode } from './types';
+import { AccelSegment, AppState, EdgeBase, FreqMode } from './types';
 import { computeFreqFromTransitions } from './compute';
 import { detectFormat } from './utils';
 import VcdWorker from './workers/vcdParser.ts?worker';
@@ -31,6 +31,7 @@ const initialState: AppState = {
   format: 'txt',
   freqMode: 'pulse',
   dutyCorrect: false,
+  edgeBase: 'falling',
   showDerivs: false,
   showFreqChart: true,
   showAccelChart: false,
@@ -99,18 +100,20 @@ export function App() {
           }
 
           setState((prev) => {
-            // 按用户当前选择的频率计算模式与占空比修正选项生成频率点
+            // 按用户当前选择的频率计算模式、占空比修正与基准边沿生成频率点
             const allPts = computeFreqFromTransitions(
               transTimes,
               transLevels,
               fmt,
               prev.freqMode,
-              prev.dutyCorrect
+              prev.dutyCorrect,
+              prev.edgeBase
             );
             return {
               ...initialState,
               freqMode: prev.freqMode,
               dutyCorrect: prev.dutyCorrect,
+              edgeBase: prev.edgeBase,
               samplingRate,
               sampleCount,
               pulseCount,
@@ -145,7 +148,8 @@ export function App() {
         prev.transLevels,
         prev.format,
         mode,
-        prev.dutyCorrect
+        prev.dutyCorrect,
+        prev.edgeBase
       );
       return {
         ...prev,
@@ -171,11 +175,38 @@ export function App() {
         prev.transLevels,
         prev.format,
         prev.freqMode,
-        on
+        on,
+        prev.edgeBase
       );
       return {
         ...prev,
         dutyCorrect: on,
+        allFreqPts: allPts,
+        freqPts: allPts,
+        cursorA: null,
+        cursorB: null,
+        accelSegs: [],
+        rangeDataIdxStart: null,
+        rangeDataIdxEnd: null,
+      };
+    });
+  }, []);
+
+  // 基准边沿切换：占空比与占空比修正的周期计算采用下降沿（默认）或上升沿
+  const updateEdgeBase = useCallback((base: EdgeBase) => {
+    setState((prev) => {
+      if (!prev.transTimes || !prev.transLevels) return { ...prev, edgeBase: base };
+      const allPts = computeFreqFromTransitions(
+        prev.transTimes,
+        prev.transLevels,
+        prev.format,
+        prev.freqMode,
+        prev.dutyCorrect,
+        base
+      );
+      return {
+        ...prev,
+        edgeBase: base,
         allFreqPts: allPts,
         freqPts: allPts,
         cursorA: null,
@@ -284,6 +315,7 @@ export function App() {
       onFile={handleFile}
       onFreqModeChange={updateFreqMode}
       onDutyCorrectChange={updateDutyCorrect}
+      onEdgeBaseChange={updateEdgeBase}
       onAccelDetect={updateAccelSegs}
       onCursorChange={updateCursor}
       onRangeModeChange={setRangeMode}

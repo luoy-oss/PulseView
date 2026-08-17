@@ -29,33 +29,37 @@ export function computeFreqFromTransitions(
   transLevels: Int8Array,
   format: 'vcd' | 'txt' | 'sr' | 'saleae',
   freqMode: FreqMode = 'pulse',
-  dutyCorrect = false
+  dutyCorrect = false,
+  edgeBase: 'falling' | 'rising' = 'falling'
 ): FreqPoint[] {
   if (!transTimes || transTimes.length < 3) return [];
 
   // 各格式导出的跳变均为严格 1/0 交替的方波：每个高电平脉冲由相邻的
   // 上升沿 + 下降沿显式界定，周期由相邻同向边（上升沿对 / 下降沿对）
   // 显式界定。边沿时间即数据本身，直接计算即可，无需任何间隙过滤。
-  // pulse 模式：每个高电平跳变对 [t[i], t[i+1]] 生成一个频率点，
-  // freq = 1/周期（相邻上升沿间隔），对 50% 占空比方波与 1/(2×脉宽) 等价，
-  // 对窄脉冲/占空比变化信号给出真实周期频率；
-  // 低电平区间不生成频率点，避免把每个脉冲拆成两个半周期点造成阶梯状曲线。
+  // pulse 模式：每个高电平脉冲生成一个频率点，横坐标取该脉冲的上升沿时刻；
   // rising 模式：相邻两个上升沿的间隔 dt 即周期（方波交替时与
-  // 相邻下降沿间隔相等），freq = 1/dt，适合占空比变化或窄脉冲信号。
+  // 相邻下降沿间隔相等），freq = 1/dt，频率点同样按上升沿时刻绘制。
+  const rises: number[] = [];
+  const falls: number[] = [];
+  // 只收集真实的跳变边沿（0→1 上升沿、1→0 下降沿），
+  // 避免把初始电平（levels[0]）误当作边沿，保证 rises/falls 与脉冲一一对应
+  for (let i = 1; i < transTimes.length; i++) {
+    if (transLevels[i] === 1 && transLevels[i - 1] === 0) rises.push(i);
+    else if (transLevels[i] === 0 && transLevels[i - 1] === 1) falls.push(i);
+  }
+
   const pts: FreqPoint[] = [];
   if (freqMode === 'rising') {
-    // 收集上升沿索引，相邻上升沿构成一个周期
-    const rises: number[] = [];
-    for (let i = 0; i < transTimes.length; i++) {
-      if (transLevels[i] === 1) rises.push(i);
-    }
+    // 相邻上升沿构成一个周期，freq = 1/dt；
+    // 横坐标取该周期终点上升沿时刻，与 pulse 模式的时间戳（脉冲上升沿）对齐
     for (let k = 1; k < rises.length; k++) {
       const i = rises[k - 1];
       const j = rises[k];
       const dt = transTimes[j] - transTimes[i];
       if (dt <= 0) continue;
       pts.push({
-        time: (transTimes[i] + transTimes[j]) / 2, // 周期中点
+        time: transTimes[j], // 周期终点上升沿时刻
         freq: 1 / dt,
         period: dt, // 周期（上升沿间隔）
       });
@@ -63,29 +67,36 @@ export function computeFreqFromTransitions(
     return pts;
   }
 
-  // pulse 模式：每个高电平跳变对 [t[i], t[i+1]] 生成一个频率点，
+  // pulse 模式：每个高电平跳变对生成一个频率点，横坐标取上升沿时刻。
   // 默认频率口径 freq = 1/(2×脉宽)（等价于假设占空比 50%，与逻辑分析仪
   // 测量一致）；低电平区间不生成频率点，避免把每个脉冲拆成两个半周期点
   // 造成阶梯状曲线。
-  // 每个点同时计算真实占空比 dutyCycle = 脉宽/周期（周期 = 相邻上升沿间隔），
-  // 供显示与占空比修正使用。dutyCorrect 开启时改用占空比修正频率：
+  // 占空比 dutyCycle = 脉宽/周期，周期按基准边沿（默认下降沿，可切换
+  // 上升沿）的相邻脉冲间隔计算；dutyCorrect 开启时改用占空比修正频率：
   // freq = 1/(2×脉宽) × (占空比/50%) = 1/周期，对窄脉冲/占空比变化的信号
   // （如 sigrok 导出的 PWM、占空比扫掠）给出真实周期频率，否则 22µs 窄脉冲
   // 会被算成 22.7kHz 而真实周期频率仅约 500Hz。
-  const rises: number[] = [];
-  for (let i = 0; i < transTimes.length; i++) {
-    if (transLevels[i] === 1) rises.push(i);
-  }
+  // 首脉冲（第一个上升沿）之前无完整周期可参照（信号先发低电平后发高电平，
+  // 起始段不可靠），固定按 50% 占空比口径计算，不参与占空比修正。
   for (let k = 0; k < rises.length; k++) {
     const i = rises[k];
     if (i + 1 >= transTimes.length) continue; // 缺下降沿（悬空高电平结尾）
     const w = transTimes[i + 1] - transTimes[i]; // 高电平脉宽
     if (w <= 0) continue;
-    const period =
-      k + 1 < rises.length ? transTimes[rises[k + 1]] - transTimes[i] : 2 * w;
-    const duty = period > 0 ? w / period : 0.5;
+    let period: number;
+    let duty: number;
+    if (k === 0) {
+      period = 2 * w; // 首脉冲默认 50% 占空比
+      duty = 0.5;
+    } else {
+      period =
+        edgeBase === 'falling'
+          ? transTimes[falls[k]] - transTimes[falls[k - 1]]
+          : transTimes[rises[k]] - transTimes[rises[k - 1]];
+      duty = period > 0 ? w / period : 0.5;
+    }
     pts.push({
-      time: (transTimes[i] + transTimes[i + 1]) / 2, // 脉冲中点
+      time: transTimes[i], // 上升沿时刻
       freq: dutyCorrect ? 1 / period : 1 / (2 * w),
       period: w, // 高电平脉宽
       dutyCycle: duty,
