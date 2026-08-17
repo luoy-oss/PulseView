@@ -4,6 +4,7 @@ export interface XYPoint {
   x: number;
   y: number;
   period?: number;
+  dutyCycle?: number;
 }
 
 export interface ViewRange {
@@ -36,7 +37,7 @@ function upperBoundTime(pts: Array<{ time: number }>, t: number): number {
 }
 
 function toFreqXY(p: FreqPoint): XYPoint {
-  return { x: p.time, y: p.freq, period: p.period };
+  return { x: p.time, y: p.freq, period: p.period, dutyCycle: p.dutyCycle };
 }
 
 function toDerivXY(p: DerivPoint): XYPoint {
