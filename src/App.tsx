@@ -29,7 +29,7 @@ const initialState: AppState = {
   rangeDataIdxEnd: null,
   fileName: '',
   format: 'txt',
-  freqMode: 'pulse',
+  freqMode: 'falling',
   dutyCorrect: false,
   edgeBase: 'falling',
   showDerivs: false,

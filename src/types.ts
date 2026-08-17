@@ -17,9 +17,10 @@ export interface Transition {
   level: 0 | 1;
 }
 
-// 频率计算模式：pulse = 高电平脉冲宽度（freq=1/(2×脉宽)，默认，等价于假设占空比 50%）；
-// rising = 相邻两个上升沿的周期（freq=1/周期）
-export type FreqMode = 'pulse' | 'rising';
+// 频率计算模式：pulse = 高电平脉冲宽度（freq=1/(2×脉宽)，等价于假设占空比 50%）；
+// rising = 相邻两个上升沿的周期（freq=1/周期）；
+// falling = 相邻两个下降沿的周期（freq=1/周期，默认），时间点取相邻两下降沿中点
+export type FreqMode = 'pulse' | 'rising' | 'falling';
 
 // 占空比/周期计算的基准边沿：falling = 相邻两脉冲下降沿间隔（默认），
 // rising = 相邻两脉冲上升沿间隔

@@ -81,6 +81,13 @@ export function Header({
           >
             上升沿周期
           </button>
+          <button
+            className={`btn btn-sm ${freqMode === 'falling' ? 'btn-p' : ''}`}
+            title="以相邻两个下降沿为周期边界：freq = 1 / 下降沿间隔（默认，适合以有效上升沿开始具体时间的数据），时间点取两下降沿中点，首个脉冲以上升沿为时间起点并默认 50% 占空比"
+            onClick={() => onFreqModeChange('falling')}
+          >
+            下降沿周期
+          </button>
           <label
             className={`btn btn-sm ${dutyCorrect ? 'btn-p' : ''}`}
             title="按实际占空比修正脉冲宽度频率：freq = 1/(2×脉宽) × (占空比/50%) = 1/周期，适合窄脉冲/占空比变化的信号；勾选后默认的 50% 占空比假设不再成立"

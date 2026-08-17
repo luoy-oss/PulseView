@@ -336,7 +336,7 @@ export function FreqChart({
               if (raw.period) {
                 suffix +=
                   ' · ' +
-                  (freqMode === 'rising' ? '周期 ' : '脉宽 ') +
+                  (freqMode === 'pulse' ? '脉宽 ' : '周期 ') +
                   fmtTime(raw.period);
               }
               if (raw.dutyCycle !== undefined) {

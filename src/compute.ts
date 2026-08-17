@@ -39,7 +39,11 @@ export function computeFreqFromTransitions(
   // 显式界定。边沿时间即数据本身，直接计算即可，无需任何间隙过滤。
   // pulse 模式：每个高电平脉冲生成一个频率点，横坐标取该脉冲的上升沿时刻；
   // rising 模式：相邻两个上升沿的间隔 dt 即周期（方波交替时与
-  // 相邻下降沿间隔相等），freq = 1/dt，频率点同样按上升沿时刻绘制。
+  // 相邻下降沿间隔相等），freq = 1/dt，频率点同样按上升沿时刻绘制；
+  // falling 模式（默认）：以相邻下降沿为周期边界，freq = 1/(fall[n] - fall[n-1])，
+  // 时间点取相邻两下降沿的中点；首个脉冲无前序下降沿，以第一个上升沿为
+  // 时间起点并默认 50% 占空比（VCD 数据从有效上升沿开始具体时间，
+  // 上升沿时刻方案会使首个频率点贴住曲线起点造成显示异常）。
   const rises: number[] = [];
   const falls: number[] = [];
   // 只收集真实的跳变边沿（0→1 上升沿、1→0 下降沿），
@@ -62,6 +66,53 @@ export function computeFreqFromTransitions(
         time: transTimes[j], // 周期终点上升沿时刻
         freq: 1 / dt,
         period: dt, // 周期（上升沿间隔）
+      });
+    }
+    return pts;
+  }
+
+  if (freqMode === 'falling') {
+    // 下降沿周期模式：以相邻下降沿为周期边界，freq = 1/(fall[n] - fall[n-1])，
+    // 时间点取相邻两下降沿的中点（代表该周期发生的时刻，避免上升沿时刻方案
+    // 让频率点贴住曲线起点/边沿造成显示异常）；每个周期内含一个高电平脉冲，
+    // 实测占空比 = 该脉冲脉宽 / 周期。
+    // 首个脉冲无前序下降沿可参照（起始段不完整），以第一个上升沿为时间起点，
+    // 固定按 50% 占空比口径计算（period = 2 × 脉宽，freq = 1/(2×脉宽)）。
+    if (rises.length === 0) return pts;
+    // 第一个真实下降沿 = 首个上升沿之后的首个下降沿：信号以高电平开头时
+    // （如 VCD 初始电平为 1），首个下降沿结束的是记录起点之前就已开始的
+    // 不完整脉冲，不能作为周期边界，必须跳过
+    let f0 = -1;
+    for (let k = 0; k < falls.length; k++) {
+      if (falls[k] > rises[0]) {
+        f0 = k;
+        break;
+      }
+    }
+    if (f0 < 0) return pts; // 无下降沿，无法构成周期
+
+    // 首个脉冲：以上升沿为时间起点，默认 50% 占空比
+    const w0 = transTimes[falls[f0]] - transTimes[rises[0]];
+    if (w0 > 0) {
+      pts.push({
+        time: transTimes[rises[0]],
+        freq: 1 / (2 * w0),
+        period: 2 * w0,
+        dutyCycle: 0.5,
+      });
+    }
+
+    // 后续脉冲：相邻下降沿间隔为周期，时间点取两下降沿中点
+    for (let k = f0 + 1; k < falls.length; k++) {
+      const period = transTimes[falls[k]] - transTimes[falls[k - 1]];
+      if (period <= 0) continue;
+      const riseIdx = rises[k - f0]; // 该周期内含的高电平脉冲上升沿
+      const w = riseIdx < falls[k] ? transTimes[falls[k]] - transTimes[riseIdx] : 0;
+      pts.push({
+        time: (transTimes[falls[k - 1]] + transTimes[falls[k]]) / 2,
+        freq: 1 / period,
+        period,
+        dutyCycle: w > 0 ? w / period : 0.5,
       });
     }
     return pts;
