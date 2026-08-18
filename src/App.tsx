@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef } from 'react';
 import { UploadScreen } from './components/UploadScreen';
 import { AppShell } from './components/AppShell';
-import { AccelSegment, AppState, EdgeBase, FreqMode } from './types';
+import { AccelSegment, AppState, EdgeBase, FreqMode, FreqPoint } from './types';
 import { computeFreqFromTransitions } from './compute';
 import { detectFormat } from './utils';
 import VcdWorker from './workers/vcdParser.ts?worker';
@@ -74,6 +74,29 @@ export function App() {
           alert('解析出错：' + d.message);
           setParsing(false);
         } else if (d.type === 'done') {
+          if (d.freqPts) {
+            // PWM 测量导出：频率/占空比/时间直接来自文件测量值（精度最高），
+            // 无需边沿重建；transTimes/transLevels 置空使模式切换不重算
+            const samplingRate: number = d.samplingRate;
+            const freqPts: FreqPoint[] = d.freqPts;
+            const fmt: 'vcd' | 'txt' | 'sr' | 'saleae' = d.format;
+            if (!samplingRate || freqPts.length === 0) {
+              alert('文件中未找到可用的 PWM 频率测量，请检查文件格式。');
+              setParsing(false);
+              return;
+            }
+            setState({
+              ...initialState,
+              samplingRate,
+              sampleCount: d.sampleCount,
+              allFreqPts: freqPts,
+              freqPts,
+              fileName: file.name,
+              format: fmt,
+            });
+            setParsing(false);
+            return;
+          }
           const risingEdges: Float64Array = d.risingEdges;
           const fallingEdges: Float64Array = d.fallingEdges;
           const transTimes: Float64Array = d.transTimes;

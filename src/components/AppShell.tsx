@@ -52,7 +52,9 @@ export function AppShell({
   const dur =
     state.risingEdges && state.risingEdges.length >= 2
       ? state.risingEdges[state.risingEdges.length - 1] - state.risingEdges[0]
-      : 0;
+      : state.freqPts.length >= 2
+        ? state.freqPts[state.freqPts.length - 1].time - state.freqPts[0].time
+        : 0;
 
   const statusLeft = `分析完成 · ${state.allFreqPts.length.toLocaleString()} 频率点`;
   const statusRight = `${fmtFreq(state.samplingRate)} · ${fmtTime(dur)}`;

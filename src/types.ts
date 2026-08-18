@@ -42,6 +42,9 @@ export interface ParseResult {
   risingEdges: Float64Array;
   fallingEdges: Float64Array;
   format: 'vcd' | 'txt' | 'sr' | 'saleae';
+  // PWM 测量导出（sigrok PulseView）直接提供频率/占空比/时间，
+  // 无需边沿重建；存在时 App 直接使用，忽略 risingEdges/fallingEdges
+  freqPts?: FreqPoint[];
 }
 
 export interface AppState {
