@@ -1,4 +1,5 @@
 import { useRef, useState, useCallback } from 'react';
+import { version } from '../../package.json';
 
 interface Props {
   onFile: (file: File) => void;
@@ -45,7 +46,9 @@ export function UploadScreen({ onFile, progress }: Props) {
       >
         <div className="upload-icon">⚡</div>
         <h1>PulseView</h1>
-        <p style={{ marginBottom: 4 }}>频率分析器</p>
+        <p style={{ marginBottom: 4 }}>
+          频率分析器 <span className="upload-ver">v{version}</span>
+        </p>
         <p className="upload-sub">拖放 .vcd / .txt / .sr / .bin / .csv 文件到此处</p>
         <p className="sep">· · ·</p>
         <label

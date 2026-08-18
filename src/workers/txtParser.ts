@@ -97,12 +97,19 @@ function parsePwmMeasurements(lines: string[]): void {
   }
   pts.sort((a, b) => a.time - b.time);
 
+  // 总脉冲数：该导出格式按 PWM 周期逐行输出测量，每个测量区间 (start-end)
+  // 恰好对应一个 PWM 周期（区间跨度 ≈ period × samplingRate），
+  // 因此唯一区间数即脉冲数——不依赖行数，因为测量种类可多可少
+  // （p.txt 含 Duty/Period/Freq 三组，pwm.txt 仅 Frequencies）
+  const pulseCount = segs.size;
+
   const re = new Float64Array(0);
   const fe = new Float64Array(0);
   (self as unknown as Worker).postMessage({
     type: 'done',
     samplingRate,
     sampleCount: pts.length,
+    pulseCount,
     risingEdges: re,
     fallingEdges: fe,
     transTimes: null,

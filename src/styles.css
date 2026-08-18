@@ -145,6 +145,14 @@ body {
   letter-spacing: 2px;
 }
 
+.upload-ver {
+  font-family: var(--fs);
+  font-size: 12px;
+  color: var(--text-3);
+  margin-left: 6px;
+  letter-spacing: 0.5px;
+}
+
 .upload-btn {
   display: inline-block;
   padding: 12px 32px;

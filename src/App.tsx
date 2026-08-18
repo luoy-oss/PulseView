@@ -89,6 +89,7 @@ export function App() {
               ...initialState,
               samplingRate,
               sampleCount: d.sampleCount,
+              pulseCount: d.pulseCount ?? 0,
               allFreqPts: freqPts,
               freqPts,
               fileName: file.name,
