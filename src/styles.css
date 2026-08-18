@@ -173,6 +173,29 @@ body {
   box-shadow: 0 4px 20px rgba(212, 162, 78, 0.2);
 }
 
+.upload-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+.upload-btn-alt { background: var(--teal); }
+
+/* ===== AB PHASE ANALYSIS ===== */
+.ab-root { height: 100vh; background: var(--bg); display: flex; flex-direction: column; }
+.ab-main { flex: 1; min-height: 0; overflow: auto; padding: 24px; }
+.ab-toolbar { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; padding: 14px 16px; background: var(--surface); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); }
+.ab-toolbar > div { display: flex; align-items: center; gap: 8px; }
+.ab-toolbar select { min-width: 150px; padding: 7px 10px; color: var(--text); background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-sm); }
+.ab-note, .ab-foot { color: var(--text-3); font-size: 11px; font-family: var(--fx); }
+.ab-wave { margin-top: 16px; padding: 16px; background: var(--surface); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); }
+.ab-wave-row { display: grid; grid-template-columns: 150px 1fr; gap: 14px; align-items: center; min-height: 96px; border-bottom: 1px solid var(--border-subtle); }
+.ab-wave-row:last-child { border-bottom: none; }
+.ab-wave-row b { font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ab-wave-row svg { width: 100%; height: 70px; background: linear-gradient(to bottom, transparent 49%, var(--border-subtle) 50%, transparent 51%); }
+.ab-grid { margin-top: 16px; display: grid; grid-template-columns: repeat(5, minmax(130px, 1fr)); gap: 1px; background: var(--border); border: 1px solid var(--border); }
+.ab-metric { min-height: 76px; padding: 13px 14px; background: var(--surface); display: flex; flex-direction: column; justify-content: space-between; }
+.ab-metric span { color: var(--text-3); font-size: 11px; }
+.ab-metric strong { color: var(--text-2); font: 600 14px var(--fx); }
+.ab-metric strong.green { color: var(--green); } .ab-metric strong.rose { color: var(--rose); } .ab-metric strong.teal { color: var(--teal); } .ab-metric strong.accent { color: var(--accent); }
+.ab-foot { margin-top: 14px; }
+@media (max-width: 760px) { .ab-main { padding: 12px; } .ab-wave-row { grid-template-columns: 90px 1fr; } .ab-grid { grid-template-columns: repeat(2, 1fr); } }
+
 .upload-progress {
   margin-top: 24px;
 }

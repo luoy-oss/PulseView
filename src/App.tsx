@@ -1,13 +1,14 @@
 import { useState, useCallback, useRef } from 'react';
 import { UploadScreen } from './components/UploadScreen';
 import { AppShell } from './components/AppShell';
-import { AccelSegment, AppState, EdgeBase, FreqMode, FreqPoint } from './types';
+import { AbChannel, AccelSegment, AppState, EdgeBase, FreqMode, FreqPoint } from './types';
 import { computeFreqFromTransitions } from './compute';
 import { detectFormat } from './utils';
 import VcdWorker from './workers/vcdParser.ts?worker';
 import TxtWorker from './workers/txtParser.ts?worker';
 import SrWorker from './workers/srParser.ts?worker';
 import SaleaeWorker from './workers/saleaeParser.ts?worker';
+import { AbAnalysisView } from './components/AbAnalysisView';
 
 const initialState: AppState = {
   samplingRate: 0,
@@ -42,9 +43,12 @@ export function App() {
   const [state, setState] = useState<AppState>(initialState);
   const [parsing, setParsing] = useState(false);
   const [parseProgress, setParseProgress] = useState('');
+  const [abChannels, setAbChannels] = useState<AbChannel[] | null>(null);
+  const [abSamplingRate, setAbSamplingRate] = useState(0);
+  const [abFileName, setAbFileName] = useState('');
   const workerRef = useRef<Worker | null>(null);
 
-  const handleFile = useCallback((file: File) => {
+  const handleFile = useCallback((file: File, mode: 'normal' | 'ab' = 'normal') => {
     const format = detectFormat(file);
     setParsing(true);
     setParseProgress('读取文件…');
@@ -73,6 +77,12 @@ export function App() {
         } else if (d.type === 'error') {
           alert('解析出错：' + d.message);
           setParsing(false);
+        } else if (d.type === 'done-ab') {
+          setAbChannels(d.channels as AbChannel[]);
+          setAbSamplingRate(d.samplingRate);
+          setAbFileName(file.name);
+          setParsing(false);
+          return;
         } else if (d.type === 'done') {
           if (d.freqPts) {
             // PWM 测量导出：频率/占空比/时间直接来自文件测量值（精度最高），
@@ -160,7 +170,7 @@ export function App() {
         setParsing(false);
       };
 
-      worker.postMessage({ type: 'parse', buffer: buf }, [buf]);
+      worker.postMessage({ type: 'parse', buffer: buf, mode }, [buf]);
     });
   }, []);
 
@@ -324,6 +334,10 @@ export function App() {
       showJerkChart: key === 'jerk' ? !prev.showJerkChart : prev.showJerkChart,
     }));
   }, []);
+
+  if (abChannels && !parsing) {
+    return <AbAnalysisView channels={abChannels} fileName={abFileName} samplingRate={abSamplingRate} onFile={handleFile} />;
+  }
 
   if (!state.samplingRate && !parsing) {
     return <UploadScreen onFile={handleFile} />;

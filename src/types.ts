@@ -47,6 +47,34 @@ export interface ParseResult {
   freqPts?: FreqPoint[];
 }
 
+export interface AbChannel {
+  id: string;
+  name: string;
+  transitions: Float64Array;
+  levels: Int8Array;
+}
+
+export interface AbParseResult {
+  samplingRate: number;
+  sampleCount: number;
+  duration: number;
+  channels: AbChannel[];
+  format: 'vcd';
+}
+
+export interface AbAnalysis {
+  aEdges: number;
+  bEdges: number;
+  cycles: number;
+  forwardCycles: number;
+  reverseCycles: number;
+  invalidTransitions: number;
+  meanPeriod: number;
+  meanPhase: number;
+  phaseStd: number;
+  phaseLead: 'A 超前 B' | 'B 超前 A' | '无明显超前';
+}
+
 export interface AppState {
   samplingRate: number;
   sampleCount: number;

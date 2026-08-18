@@ -6,6 +6,70 @@ self.onmessage = function (e: MessageEvent) {
   const text = new TextDecoder('utf-8', { fatal: false }).decode(new Uint8Array(buf));
   const lines = text.split(/\r?\n/);
 
+  if (e.data.mode === 'ab') {
+    const channelDefs: { id: string; name: string }[] = [];
+    let timescaleNsAb = 1;
+    let headerEnd = 0;
+    for (; headerEnd < lines.length; headerEnd++) {
+      const line = lines[headerEnd];
+      const ts = line.match(/\$timescale\s+([0-9.]+)\s*(ps|ns|us|ms|s)\s*\$end/i);
+      if (ts) {
+        timescaleNsAb = parseFloat(ts[1]) * ({ ps: 0.001, ns: 1, us: 1000, ms: 1e6, s: 1e9 }[ts[2].toLowerCase()] || 1);
+      }
+      const vm = line.match(/^\s*\$var\s+(?:wire|reg)\s+1\s+(\S+)\s+(.+?)\s+\$end\s*$/);
+      if (vm) channelDefs.push({ id: vm[1], name: vm[2].trim() });
+      if (line.includes('$enddefinitions')) { headerEnd++; break; }
+    }
+    if (channelDefs.length < 2) {
+      (self as unknown as Worker).postMessage({ type: 'error', message: 'AB 相模式至少需要两个单比特 $var 通道。' });
+      return;
+    }
+    const times = new Map<string, number[]>();
+    const levels = new Map<string, number[]>();
+    for (const ch of channelDefs) { times.set(ch.id, []); levels.set(ch.id, []); }
+    let sampleCountAb = 0;
+    let maxTime = 0;
+    let currentTime = 0;
+    for (let k = headerEnd; k < lines.length; k++) {
+      const line = lines[k].trim();
+      const timeMatch = line.match(/^#(\d+)\s*(.*)$/);
+      const valueText = timeMatch ? timeMatch[2] : line;
+      if (timeMatch) currentTime = parseFloat(timeMatch[1]);
+      if (!timeMatch && !/^[01xXzZ]/.test(valueText)) continue;
+      const t = currentTime * timescaleNsAb * 1e-9;
+      for (const change of valueText.matchAll(/([01xXzZ])\s*(\S+)/g)) {
+        const id = change[2];
+        if (!times.has(id)) continue;
+        if (!/^[01]$/.test(change[1])) continue;
+        const level = change[1] === '1' ? 1 : 0;
+        const ta = times.get(id)!;
+        const la = levels.get(id)!;
+        if (la.length === 0 || la[la.length - 1] !== level) {
+          ta.push(t);
+          la.push(level);
+        }
+        sampleCountAb++;
+      }
+      maxTime = Math.max(maxTime, t);
+    }
+    let samplingRateAb = 0;
+    const allTransitions = channelDefs.flatMap((ch) => times.get(ch.id)!);
+    allTransitions.sort((a, b) => a - b);
+    for (let k = 1; k < Math.min(allTransitions.length, 1000); k++) {
+      const dt = allTransitions[k] - allTransitions[k - 1];
+      if (dt > 0 && (!samplingRateAb || dt < 1 / samplingRateAb)) samplingRateAb = 1 / dt;
+    }
+    if (!samplingRateAb) samplingRateAb = 24e6;
+    const channels = channelDefs.map((ch) => ({
+      id: ch.id,
+      name: ch.name,
+      transitions: new Float64Array(times.get(ch.id)!),
+      levels: new Int8Array(levels.get(ch.id)!),
+    }));
+    (self as unknown as Worker).postMessage({ type: 'done-ab', samplingRate: samplingRateAb, sampleCount: sampleCountAb, duration: maxTime, channels, format: 'vcd' });
+    return;
+  }
+
   let timescaleNs = 1;
   let commentSampleRate: number | null = null;
   let varId: string | null = null;
@@ -15,11 +79,11 @@ self.onmessage = function (e: MessageEvent) {
   for (; i < lines.length; i++) {
     const line = lines[i];
 
-    const tsMatch = line.match(/\$timescale\s+([0-9.]+)\s*(ns|us|ms|s)\s*\$end/i);
+    const tsMatch = line.match(/\$timescale\s+([0-9.]+)\s*(ps|ns|us|ms|s)\s*\$end/i);
     if (tsMatch) {
       const v = parseFloat(tsMatch[1]);
       const u = tsMatch[2].toLowerCase();
-      timescaleNs = v * ({ ns: 1, us: 1000, ms: 1e6, s: 1e9 }[u] || 1);
+      timescaleNs = v * ({ ps: 0.001, ns: 1, us: 1000, ms: 1e6, s: 1e9 }[u] || 1);
     }
 
     const rateMatch = line.match(
