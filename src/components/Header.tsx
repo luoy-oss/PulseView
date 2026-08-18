@@ -10,9 +10,12 @@ interface Props {
   lowGapToleranceEnabled: boolean;
   lowGapTolerancePct: number;
   canComputeLowGap: boolean;
+  lowGapAnnotationEnabled: boolean;
+  lowGapThreshold: number;
   onDutyCorrectChange: (on: boolean) => void;
   onEdgeBaseChange: (base: EdgeBase) => void;
   onLowGapToleranceChange: (enabled: boolean, pct: number) => void;
+  onLowGapAnnotationChange: (enabled: boolean, threshold: number) => void;
   onFreqModeChange: (mode: FreqMode) => void;
   onFile: (file: File) => void;
   onRangeModeChange: (mode: boolean) => void;
@@ -31,9 +34,12 @@ export function Header({
   lowGapToleranceEnabled,
   lowGapTolerancePct,
   canComputeLowGap,
+  lowGapAnnotationEnabled,
+  lowGapThreshold,
   onDutyCorrectChange,
   onEdgeBaseChange,
   onLowGapToleranceChange,
+  onLowGapAnnotationChange,
   onFreqModeChange,
   onFile,
   onRangeModeChange,
@@ -54,16 +60,14 @@ export function Header({
 
   const handleExport = useCallback(() => {
     if (!allFreqPts.length) return;
-    const parts: string[] = [
-      freqMode === 'low-gap' ? 'time_s,low_level_gap_s\n' : 'time_s,frequency_hz\n',
-    ];
+    const parts: string[] = ['time_s,frequency_hz\n'];
     for (const p of allFreqPts) {
       parts.push(p.time.toPrecision(10) + ',' + p.freq.toPrecision(10) + '\n');
     }
     const blob = new Blob(parts, { type: 'text/csv' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = freqMode === 'low-gap' ? 'low_level_gap_full.csv' : 'frequency_data_full.csv';
+    a.download = 'frequency_data_full.csv';
     a.click();
     URL.revokeObjectURL(a.href);
   }, [allFreqPts, freqMode]);
@@ -99,21 +103,37 @@ export function Header({
             下降沿周期
           </button>
           <button
-            className={`btn btn-sm ${freqMode === 'low-gap' ? 'btn-p' : ''}`}
-            title={
-              canComputeLowGap
-                ? '测试功能：仅适用于稳定 50% 占空比、每周期单一高电平脉冲。间隔 = 相邻下降沿周期 − 2 × 高电平脉宽；正值表示额外低电平停顿。'
-                : '当前 PWM 测量直通数据不包含原始边沿，无法推导低电平间隔。'
-            }
+            className={`btn btn-sm ${lowGapAnnotationEnabled ? 'btn-p' : ''}`}
+            title={canComputeLowGap
+              ? '测试标注：在原始频率图上标出低电平间隔。默认阈值 1ms，最小支持 900μs；仅适用于稳定 50% 占空比、每周期单一高电平脉冲。'
+              : '当前 PWM 测量直通数据不包含原始边沿，无法标注低电平间隔。'}
             disabled={!canComputeLowGap}
-            onClick={() => onFreqModeChange('low-gap')}
+            onClick={() => onLowGapAnnotationChange(!lowGapAnnotationEnabled, lowGapThreshold)}
           >
-            低电平间隔（测试）
+            低电平间隔标注（测试）
           </button>
-          {freqMode === 'low-gap' && (
+          {lowGapAnnotationEnabled && (
+            <label
+              className="btn btn-sm"
+              title="标注阈值：默认 1ms，允许的最小值为 900μs。只有达到此阈值的低电平间隔才会在原始频率图上标注。"
+            >
+              <input
+                className="low-gap-tolerance"
+                type="number"
+                min="0.9"
+                step="0.1"
+                value={lowGapThreshold * 1000}
+                aria-label="低电平间隔标注阈值（毫秒）"
+                title="单位：毫秒，最小 0.9ms"
+                onChange={(e) => onLowGapAnnotationChange(true, Number(e.target.value) / 1000)}
+              />
+              ms 起标注
+            </label>
+          )}
+          {lowGapAnnotationEnabled && (
             <label
               className={`btn btn-sm ${lowGapToleranceEnabled ? 'btn-p' : ''}`}
-              title="启用后，处于 50% ± 容差内的占空比误差将显示为 0 间隔；超过容差的正值或负值保留原始推导结果。"
+              title="启用后，50% ± 容差内的占空比误差不生成低电平间隔标注；超出容差的原始间隔按阈值判断。"
             >
               <input
                 type="checkbox"
@@ -128,7 +148,6 @@ export function Header({
                 step="0.0001"
                 value={lowGapTolerancePct}
                 aria-label="50% 占空比容差（百分点）"
-                title="单位：百分点，例如 0.0100 表示 50.0000% ± 0.0100%"
                 onChange={(e) => onLowGapToleranceChange(lowGapToleranceEnabled, Number(e.target.value))}
               />
               %

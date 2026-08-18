@@ -9,7 +9,7 @@ import {
 import { Chart as ReactChart } from 'react-chartjs-2';
 import zoomPlugin from 'chartjs-plugin-zoom';
 import annotationPlugin from 'chartjs-plugin-annotation';
-import { FreqPoint, AccelSegment, FreqMode } from '../types';
+import { FreqPoint, AccelSegment, FreqMode, LowGapMarker } from '../types';
 import { fmtTime, fmtTimeShort, fmtFreq, fmtFreqShort } from '../utils';
 import { buildVisibleData, ViewRange } from '../decimate';
 
@@ -39,6 +39,7 @@ interface Props {
   rangeStart: number | null;
   rangeEnd: number | null;
   accelSegs: AccelSegment[];
+  lowGapMarkers?: LowGapMarker[];
   viewRange: ViewRange | null;
   onViewRangeChange: (r: ViewRange | null) => void;
   onCursorChange: (which: 'A' | 'B', idx: number | null) => void;
@@ -65,6 +66,7 @@ export function FreqChart({
   rangeStart,
   rangeEnd,
   accelSegs,
+  lowGapMarkers = [],
   viewRange,
   onViewRangeChange,
   onCursorChange,
@@ -230,8 +232,29 @@ export function FreqChart({
       };
     });
 
+    lowGapMarkers.forEach((marker, i) => {
+      annos['low_gap_' + i] = {
+        type: 'box',
+        xMin: marker.startTime,
+        xMax: marker.endTime,
+        backgroundColor: 'rgba(224,108,117,.18)',
+        borderColor: 'rgba(224,108,117,.8)',
+        borderWidth: 1.5,
+        label: {
+          display: true,
+          content: '低电平 ' + fmtTime(marker.gap),
+          position: 'center',
+          color: '#ffd9dc',
+          backgroundColor: 'rgba(128,35,44,.9)',
+          font: { family: 'Source Code Pro', size: 10, weight: 600 },
+          padding: { x: 5, y: 3 },
+          borderRadius: 3,
+        },
+      };
+    });
+
     return annos;
-  }, [cursorA, cursorB, rangeStart, rangeEnd, accelSegs, freqPts]);
+  }, [cursorA, cursorB, rangeStart, rangeEnd, accelSegs, lowGapMarkers, freqPts]);
 
   const handleChartClick = useCallback(
     (evt: { native?: Event }) => {
@@ -486,11 +509,7 @@ export function FreqChart({
                       }
                       return 0;
                     })();
-                    exportCSV(
-                      allFreqPts.slice(idxS, idxE + 1),
-                      freqMode === 'low-gap' ? 'low_level_gap_range.csv' : 'frequency_range.csv',
-                      freqMode === 'low-gap'
-                    );
+                    exportCSV(allFreqPts.slice(idxS, idxE + 1), 'frequency_range.csv');
                   }}
                 >
                   导出选区
@@ -516,9 +535,9 @@ export function FreqChart({
   );
 }
 
-function exportCSV(pts: FreqPoint[], filename: string, lowGap = false) {
+function exportCSV(pts: FreqPoint[], filename: string) {
   if (!pts.length) return;
-  const parts: string[] = [lowGap ? 'time_s,low_level_gap_s\n' : 'time_s,frequency_hz\n'];
+  const parts: string[] = ['time_s,frequency_hz\n'];
   for (const p of pts) {
     parts.push(p.time.toPrecision(10) + ',' + p.freq.toPrecision(10) + '\n');
   }

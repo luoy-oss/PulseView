@@ -1,4 +1,59 @@
 import type { FreqPoint, DerivPoint, AccelSegment, FreqMode } from './types';
+import type { LowGapMarker } from './types';
+
+export const LOW_GAP_MIN_THRESHOLD = 0.0009;
+export const LOW_GAP_DEFAULT_THRESHOLD = 0.001;
+
+export function computeLowGapMarkers(
+  transTimes: Float64Array,
+  transLevels: Int8Array,
+  threshold = LOW_GAP_DEFAULT_THRESHOLD,
+  toleranceEnabled = false,
+  tolerancePct = 0
+): LowGapMarker[] {
+  if (!transTimes || transTimes.length < 3) return [];
+  const rises: number[] = [];
+  const falls: number[] = [];
+  for (let i = 1; i < transTimes.length; i++) {
+    if (transLevels[i] === 1 && transLevels[i - 1] === 0) rises.push(i);
+    else if (transLevels[i] === 0 && transLevels[i - 1] === 1) falls.push(i);
+  }
+  if (rises.length === 0) return [];
+  let firstFall = -1;
+  for (let i = 0; i < falls.length; i++) {
+    if (falls[i] > rises[0]) {
+      firstFall = i;
+      break;
+    }
+  }
+  if (firstFall < 0) return [];
+
+  const minThreshold = Math.max(
+    LOW_GAP_MIN_THRESHOLD,
+    Number.isFinite(threshold) ? threshold : LOW_GAP_DEFAULT_THRESHOLD
+  );
+  const tolerance = Math.max(0, tolerancePct) / 100;
+  const markers: LowGapMarker[] = [];
+  for (let k = firstFall + 1; k < falls.length; k++) {
+    const previousFall = falls[k - 1];
+    const currentFall = falls[k];
+    const rise = rises[k - firstFall];
+    if (rise >= currentFall) continue;
+    const period = transTimes[currentFall] - transTimes[previousFall];
+    const width = transTimes[currentFall] - transTimes[rise];
+    const lowStart = transTimes[previousFall];
+    const lowEnd = transTimes[rise];
+    if (period <= 0 || width <= 0 || lowEnd <= lowStart) continue;
+    const dutyCycle = width / period;
+    const rawGap = period - 2 * width;
+    const gap =
+      toleranceEnabled && Math.abs(dutyCycle - 0.5) <= tolerance ? 0 : rawGap;
+    if (gap >= minThreshold) {
+      markers.push({ startTime: lowStart, endTime: lowEnd, gap, dutyCycle });
+    }
+  }
+  return markers;
+}
 
 // 停歇间隙判定（仅用于加减速分段切块）：间隔分布中出现 >= GAP_MIN_RATIO 倍的
 // "断层"（如 0.7s 停歇 vs 正常 2.5ms 间隔）时，取断层两值的几何均值作为阈值，

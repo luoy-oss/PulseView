@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { AppState, AccelSegment, EdgeBase, FreqMode } from '../types';
 import { Header } from './Header';
 import { Sidebar } from './Sidebar';
@@ -7,6 +7,7 @@ import { DerivView, DerivChartKey } from './DerivView';
 import { AnalysisPanel } from './AnalysisPanel';
 import { StatusBar } from './StatusBar';
 import { fmtFreq, fmtTime } from '../utils';
+import { computeLowGapMarkers } from '../compute';
 import { ViewRange } from '../decimate';
 
 interface Props {
@@ -16,6 +17,7 @@ interface Props {
   onDutyCorrectChange: (on: boolean) => void;
   onEdgeBaseChange: (base: EdgeBase) => void;
   onLowGapToleranceChange: (enabled: boolean, pct: number) => void;
+  onLowGapAnnotationChange: (enabled: boolean, threshold: number) => void;
   onAccelDetect: (segs: AccelSegment[]) => void;
   onCursorChange: (which: 'A' | 'B', idx: number | null) => void;
   onRangeModeChange: (mode: boolean) => void;
@@ -37,6 +39,7 @@ export function AppShell({
   onDutyCorrectChange,
   onEdgeBaseChange,
   onLowGapToleranceChange,
+  onLowGapAnnotationChange,
   onAccelDetect,
   onCursorChange,
   onRangeModeChange,
@@ -58,10 +61,28 @@ export function AppShell({
         ? state.freqPts[state.freqPts.length - 1].time - state.freqPts[0].time
         : 0;
 
-  const isLowGap = state.freqMode === 'low-gap';
-  const statusLeft = `分析完成 · ${state.allFreqPts.length.toLocaleString()} ${
-    isLowGap ? '间隔点' : '频率点'
-  }`;
+  const lowGapMarkers = useMemo(
+    () =>
+      state.transTimes && state.transLevels
+        ? state.lowGapAnnotationEnabled
+          ? computeLowGapMarkers(
+            state.transTimes,
+            state.transLevels,
+            state.lowGapThreshold,
+            state.lowGapToleranceEnabled,
+            state.lowGapTolerancePct
+            )
+          : []
+        : [],
+    [
+      state.transTimes,
+      state.transLevels,
+      state.lowGapThreshold,
+      state.lowGapToleranceEnabled,
+      state.lowGapTolerancePct,
+    ]
+  );
+  const statusLeft = `分析完成 · ${state.allFreqPts.length.toLocaleString()} 频率点`;
   const statusRight = `${fmtFreq(state.samplingRate)} · ${fmtTime(dur)}`;
 
   return (
@@ -75,9 +96,12 @@ export function AppShell({
         lowGapToleranceEnabled={state.lowGapToleranceEnabled}
         lowGapTolerancePct={state.lowGapTolerancePct}
         canComputeLowGap={Boolean(state.transTimes && state.transLevels)}
+        lowGapAnnotationEnabled={state.lowGapAnnotationEnabled}
+        lowGapThreshold={state.lowGapThreshold}
         onDutyCorrectChange={onDutyCorrectChange}
         onEdgeBaseChange={onEdgeBaseChange}
         onLowGapToleranceChange={onLowGapToleranceChange}
+        onLowGapAnnotationChange={onLowGapAnnotationChange}
         onFreqModeChange={onFreqModeChange}
         onFile={onFile}
         onRangeModeChange={onRangeModeChange}
@@ -94,7 +118,7 @@ export function AppShell({
           fallingCount={fallingCount}
           duration={dur}
           allFreqPts={state.allFreqPts}
-          lowGapMode={isLowGap}
+          lowGapMode={false}
         />
         <div className="chart-area">
           {state.showDerivs ? (
@@ -108,6 +132,7 @@ export function AppShell({
               rangeStart={state.rangeStart}
               rangeEnd={state.rangeEnd}
               accelSegs={state.accelSegs}
+              lowGapMarkers={lowGapMarkers}
               showFreqChart={state.showFreqChart}
               showAccelChart={state.showAccelChart}
               showJerkChart={state.showJerkChart}
@@ -131,6 +156,7 @@ export function AppShell({
               rangeStart={state.rangeStart}
               rangeEnd={state.rangeEnd}
               accelSegs={state.accelSegs}
+              lowGapMarkers={lowGapMarkers}
               viewRange={viewRange}
               onViewRangeChange={setViewRange}
               onCursorChange={onCursorChange}
@@ -140,8 +166,7 @@ export function AppShell({
               resetZoomRef={resetZoomRef}
             />
           )}
-          {!isLowGap && (
-            <AnalysisPanel
+          <AnalysisPanel
               allFreqPts={state.allFreqPts}
               cursorA={state.cursorA}
               cursorB={state.cursorB}
@@ -150,8 +175,7 @@ export function AppShell({
               risingEdges={state.risingEdges}
               onAccelDetect={onAccelDetect}
               onCursorChange={onCursorChange}
-            />
-          )}
+          />
         </div>
       </div>
       <StatusBar left={statusLeft} right={statusRight} />

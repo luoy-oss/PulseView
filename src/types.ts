@@ -6,6 +6,13 @@ export interface FreqPoint {
   dutyCycle?: number;
 }
 
+export interface LowGapMarker {
+  startTime: number;
+  endTime: number;
+  gap: number;
+  dutyCycle: number;
+}
+
 // 导数曲线点：value 为加速度（Hz/s）或加加速度（Hz/s²）
 export interface DerivPoint {
   time: number;
@@ -114,6 +121,8 @@ export interface AppState {
   // 低电平间隔测试的可选容差过滤：启用后，50% ± 容差内的占空比误差归零为无间隔
   lowGapToleranceEnabled: boolean;
   lowGapTolerancePct: number;
+  lowGapAnnotationEnabled: boolean;
+  lowGapThreshold: number;
   // 多图视图：导数视图开关 + 各图可见性（默认只显示频率图）
   showDerivs: boolean;
   showFreqChart: boolean;

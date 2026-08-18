@@ -1,5 +1,9 @@
 import assert from 'node:assert/strict';
-import { computeFreqFromTransitions } from '../src/compute.ts';
+import {
+  computeFreqFromTransitions,
+  computeLowGapMarkers,
+  LOW_GAP_MIN_THRESHOLD,
+} from '../src/compute.ts';
 
 const levels = new Int8Array([0, 1, 0, 1, 0, 1, 0, 1, 0]);
 
@@ -41,5 +45,23 @@ const tolerated = computeFreqFromTransitions(
   0.01
 );
 assert.deepEqual(tolerated.map((point) => point.freq), [0, 0]);
+
+const markers = computeLowGapMarkers(
+  new Float64Array([0, 1, 2, 3, 4, 6, 7, 8, 9]),
+  levels,
+  0.001
+);
+assert.equal(markers.length, 1);
+assert.equal(markers[0].startTime, 4);
+assert.equal(markers[0].endTime, 6);
+assert.equal(markers[0].gap, 1);
+
+const minimumThresholdMarkers = computeLowGapMarkers(
+  new Float64Array([0, 1, 2, 3, 4, 5.00085, 6.00085]),
+  new Int8Array([0, 1, 0, 1, 0, 1, 0]),
+  0
+);
+assert.equal(LOW_GAP_MIN_THRESHOLD, 0.0009);
+assert.equal(minimumThresholdMarkers.length, 0);
 
 console.log('low-gap compute tests passed');

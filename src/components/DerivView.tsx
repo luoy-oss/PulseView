@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
-import { FreqPoint, AccelSegment, FreqMode } from '../types';
+import { FreqPoint, AccelSegment, FreqMode, LowGapMarker } from '../types';
 import { FreqChart } from './FreqChart';
 import { DerivSeriesChart } from './DerivSeriesChart';
 import { computeDerivatives } from '../compute';
@@ -18,6 +18,7 @@ interface Props {
   rangeStart: number | null;
   rangeEnd: number | null;
   accelSegs: AccelSegment[];
+  lowGapMarkers?: LowGapMarker[];
   showFreqChart: boolean;
   showAccelChart: boolean;
   showJerkChart: boolean;
@@ -48,6 +49,7 @@ export function DerivView({
   rangeStart,
   rangeEnd,
   accelSegs,
+  lowGapMarkers = [],
   showFreqChart,
   showAccelChart,
   showJerkChart,
@@ -129,6 +131,7 @@ export function DerivView({
             rangeStart={rangeStart}
             rangeEnd={rangeEnd}
             accelSegs={accelSegs}
+            lowGapMarkers={lowGapMarkers}
             viewRange={viewRange}
             onViewRangeChange={onViewRangeChange}
             onCursorChange={onCursorChange}

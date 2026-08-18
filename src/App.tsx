@@ -2,7 +2,12 @@ import { useState, useCallback, useRef } from 'react';
 import { UploadScreen } from './components/UploadScreen';
 import { AppShell } from './components/AppShell';
 import { AbChannel, AccelSegment, AppState, EdgeBase, FreqMode, FreqPoint } from './types';
-import { computeFreqFromTransitions } from './compute';
+import {
+  computeFreqFromTransitions,
+  computeLowGapMarkers,
+  LOW_GAP_DEFAULT_THRESHOLD,
+  LOW_GAP_MIN_THRESHOLD,
+} from './compute';
 import { detectFormat } from './utils';
 import VcdWorker from './workers/vcdParser.ts?worker';
 import TxtWorker from './workers/txtParser.ts?worker';
@@ -35,6 +40,8 @@ const initialState: AppState = {
   edgeBase: 'falling',
   lowGapToleranceEnabled: false,
   lowGapTolerancePct: 0.01,
+  lowGapAnnotationEnabled: true,
+  lowGapThreshold: LOW_GAP_DEFAULT_THRESHOLD,
   showDerivs: false,
   showFreqChart: true,
   showAccelChart: false,
@@ -154,6 +161,8 @@ export function App() {
               edgeBase: prev.edgeBase,
               lowGapToleranceEnabled: prev.lowGapToleranceEnabled,
               lowGapTolerancePct: prev.lowGapTolerancePct,
+              lowGapAnnotationEnabled: prev.lowGapAnnotationEnabled,
+              lowGapThreshold: prev.lowGapThreshold,
               samplingRate,
               sampleCount,
               pulseCount,
@@ -182,9 +191,8 @@ export function App() {
 
   const updateFreqMode = useCallback((mode: FreqMode) => {
     setState((prev) => {
-      // PWM 测量直通数据只包含仪器输出的频率/周期/占空比，没有原始边沿，
-      // 不能推导低电平间隔；保持原模式以免将频率数据错误标记为间隔。
-      if (mode === 'low-gap' && (!prev.transTimes || !prev.transLevels)) return prev;
+      // 旧的 low-gap 独立图改为主图标注；保留当前频率模式。
+      if (mode === 'low-gap') return prev;
       if (!prev.transTimes || !prev.transLevels) return { ...prev, freqMode: mode };
       const allPts = computeFreqFromTransitions(
         prev.transTimes,
@@ -208,10 +216,6 @@ export function App() {
         rangeDataIdxStart: null,
         rangeDataIdxEnd: null,
         // 低电平间隔不是频率，不能把它送入频率导数/加减速分析。
-        showDerivs: mode === 'low-gap' ? false : prev.showDerivs,
-        showFreqChart: mode === 'low-gap' ? true : prev.showFreqChart,
-        showAccelChart: mode === 'low-gap' ? false : prev.showAccelChart,
-        showJerkChart: mode === 'low-gap' ? false : prev.showJerkChart,
       };
     });
   }, []);
@@ -307,6 +311,16 @@ export function App() {
         rangeDataIdxEnd: null,
       };
     });
+  }, []);
+
+  const updateLowGapAnnotation = useCallback((enabled: boolean, threshold: number) => {
+    setState((prev) => ({
+      ...prev,
+      lowGapAnnotationEnabled: enabled,
+      lowGapThreshold: Number.isFinite(threshold)
+        ? Math.max(LOW_GAP_MIN_THRESHOLD, threshold)
+        : prev.lowGapThreshold,
+    }));
   }, []);
 
   const updateAccelSegs = useCallback((segs: AccelSegment[]) => {
@@ -412,6 +426,7 @@ export function App() {
       onDutyCorrectChange={updateDutyCorrect}
       onEdgeBaseChange={updateEdgeBase}
       onLowGapToleranceChange={updateLowGapTolerance}
+      onLowGapAnnotationChange={updateLowGapAnnotation}
       onAccelDetect={updateAccelSegs}
       onCursorChange={updateCursor}
       onRangeModeChange={setRangeMode}
