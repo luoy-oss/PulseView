@@ -1,7 +1,9 @@
 import { AbAnalysis, AbChannel, AbFreqPoint } from './types';
 
-const FORWARD = new Set(['0>1', '1>3', '3>2', '2>0']);
-const REVERSE = new Set(['0>2', '2>3', '3>1', '1>0']);
+// AB 位序为 A 在高位、B 在低位。A 超前 B 90° 时：
+// 00 → 10 → 11 → 01 → 00 为正向；反序为反向。
+const FORWARD = new Set(['0>2', '2>3', '3>1', '1>0']);
+const REVERSE = new Set(['0>1', '1>3', '3>2', '2>0']);
 
 function mean(values: number[]): number {
   return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0;
