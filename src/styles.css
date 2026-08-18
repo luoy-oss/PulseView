@@ -325,6 +325,17 @@ body {
   cursor: pointer;
 }
 
+.low-gap-tolerance {
+  width: 54px;
+  margin-left: 5px;
+  padding: 1px 3px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+}
+
 .freq-mode-group .edge-base-label {
   color: var(--text-3);
   cursor: default;

@@ -295,7 +295,7 @@ export function FreqChart({
         y: {
           title: {
             display: true,
-            text: '频率',
+            text: freqMode === 'low-gap' ? '低电平间隔' : '频率',
             color: '#5c5668',
             font: { family: 'DM Sans', size: 11, weight: 600 },
             padding: { bottom: 8 },
@@ -303,7 +303,10 @@ export function FreqChart({
           ticks: {
             color: '#5c5668',
             font: { family: 'Source Code Pro', size: 10 },
-            callback: (v) => fmtFreqShort(v as number),
+            callback: (v) =>
+              freqMode === 'low-gap'
+                ? fmtTimeShort(v as number)
+                : fmtFreqShort(v as number),
             maxTicksLimit: 8,
           },
           grid: { color: 'rgba(42,39,53,0.6)', lineWidth: 0.8 },
@@ -330,13 +333,20 @@ export function FreqChart({
               const raw = item.raw as
                 | { period?: number; dutyCycle?: number }
                 | undefined;
-              const text = '频率  ' + fmtFreq(item.parsed.y ?? 0);
+              const text =
+                freqMode === 'low-gap'
+                  ? '低电平间隔  ' + fmtTime(item.parsed.y ?? 0)
+                  : '频率  ' + fmtFreq(item.parsed.y ?? 0);
               if (!raw) return text;
               let suffix = '';
               if (raw.period) {
                 suffix +=
                   ' · ' +
-                  (freqMode === 'pulse' ? '脉宽 ' : '周期 ') +
+                    (freqMode === 'low-gap'
+                      ? '周期 '
+                      : freqMode === 'pulse'
+                        ? '脉宽 '
+                        : '周期 ') +
                   fmtTime(raw.period);
               }
               if (raw.dutyCycle !== undefined) {
@@ -476,7 +486,11 @@ export function FreqChart({
                       }
                       return 0;
                     })();
-                    exportCSV(allFreqPts.slice(idxS, idxE + 1), 'frequency_range.csv');
+                    exportCSV(
+                      allFreqPts.slice(idxS, idxE + 1),
+                      freqMode === 'low-gap' ? 'low_level_gap_range.csv' : 'frequency_range.csv',
+                      freqMode === 'low-gap'
+                    );
                   }}
                 >
                   导出选区
@@ -502,9 +516,9 @@ export function FreqChart({
   );
 }
 
-function exportCSV(pts: FreqPoint[], filename: string) {
+function exportCSV(pts: FreqPoint[], filename: string, lowGap = false) {
   if (!pts.length) return;
-  const parts: string[] = ['time_s,frequency_hz\n'];
+  const parts: string[] = [lowGap ? 'time_s,low_level_gap_s\n' : 'time_s,frequency_hz\n'];
   for (const p of pts) {
     parts.push(p.time.toPrecision(10) + ',' + p.freq.toPrecision(10) + '\n');
   }

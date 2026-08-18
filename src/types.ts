@@ -19,8 +19,9 @@ export interface Transition {
 
 // 频率计算模式：pulse = 高电平脉冲宽度（freq=1/(2×脉宽)，等价于假设占空比 50%）；
 // rising = 相邻两个上升沿的周期（freq=1/周期）；
-// falling = 相邻两个下降沿的周期（freq=1/周期，默认），时间点取相邻两下降沿中点
-export type FreqMode = 'pulse' | 'rising' | 'falling';
+// falling = 相邻两个下降沿的周期（freq=1/周期，默认），时间点取相邻两下降沿中点；
+// low-gap = 严格 50% 占空比前提下推导的额外低电平间隔（测试功能）
+export type FreqMode = 'pulse' | 'rising' | 'falling' | 'low-gap';
 
 // 占空比/周期计算的基准边沿：falling = 相邻两脉冲下降沿间隔（默认），
 // rising = 相邻两脉冲上升沿间隔
@@ -110,6 +111,9 @@ export interface AppState {
   dutyCorrect: boolean;
   // 占空比/周期计算的基准边沿（默认下降沿，可切换上升沿）
   edgeBase: EdgeBase;
+  // 低电平间隔测试的可选容差过滤：启用后，50% ± 容差内的占空比误差归零为无间隔
+  lowGapToleranceEnabled: boolean;
+  lowGapTolerancePct: number;
   // 多图视图：导数视图开关 + 各图可见性（默认只显示频率图）
   showDerivs: boolean;
   showFreqChart: boolean;

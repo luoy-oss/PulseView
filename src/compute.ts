@@ -30,7 +30,9 @@ export function computeFreqFromTransitions(
   format: 'vcd' | 'txt' | 'sr' | 'saleae',
   freqMode: FreqMode = 'pulse',
   dutyCorrect = false,
-  edgeBase: 'falling' | 'rising' = 'falling'
+  edgeBase: 'falling' | 'rising' = 'falling',
+  lowGapToleranceEnabled = false,
+  lowGapTolerancePct = 0
 ): FreqPoint[] {
   if (!transTimes || transTimes.length < 3) return [];
 
@@ -54,6 +56,42 @@ export function computeFreqFromTransitions(
   }
 
   const pts: FreqPoint[] = [];
+  if (freqMode === 'low-gap') {
+    // 测试模式：严格 50% 占空比方波在无额外低电平停顿时满足 period = 2 × width。
+    // 可选容差只把接近 50% 的硬件误差归零，不删除其余正值或负值。
+    if (rises.length === 0) return pts;
+    let f0 = -1;
+    for (let k = 0; k < falls.length; k++) {
+      if (falls[k] > rises[0]) {
+        f0 = k;
+        break;
+      }
+    }
+    if (f0 < 0) return pts;
+
+    const tolerance = Math.max(0, lowGapTolerancePct) / 100;
+    for (let k = f0 + 1; k < falls.length; k++) {
+      const period = transTimes[falls[k]] - transTimes[falls[k - 1]];
+      const riseIdx = rises[k - f0];
+      if (period <= 0 || riseIdx >= falls[k]) continue;
+      const width = transTimes[falls[k]] - transTimes[riseIdx];
+      if (width <= 0) continue;
+      const dutyCycle = width / period;
+      const rawGap = period - 2 * width;
+      const gap =
+        lowGapToleranceEnabled && Math.abs(dutyCycle - 0.5) <= tolerance
+          ? 0
+          : rawGap;
+      pts.push({
+        time: (transTimes[falls[k - 1]] + transTimes[falls[k]]) / 2,
+        freq: gap,
+        period,
+        dutyCycle,
+      });
+    }
+    return pts;
+  }
+
   if (freqMode === 'rising') {
     // 上升沿周期模式：相邻上升沿构成一个周期，freq = 1/dt；
     // 横坐标取该周期终点上升沿时刻。

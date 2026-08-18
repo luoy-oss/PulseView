@@ -33,6 +33,8 @@ const initialState: AppState = {
   freqMode: 'falling',
   dutyCorrect: false,
   edgeBase: 'falling',
+  lowGapToleranceEnabled: false,
+  lowGapTolerancePct: 0.01,
   showDerivs: false,
   showFreqChart: true,
   showAccelChart: false,
@@ -141,13 +143,17 @@ export function App() {
               fmt,
               prev.freqMode,
               prev.dutyCorrect,
-              prev.edgeBase
+              prev.edgeBase,
+              prev.lowGapToleranceEnabled,
+              prev.lowGapTolerancePct
             );
             return {
               ...initialState,
               freqMode: prev.freqMode,
               dutyCorrect: prev.dutyCorrect,
               edgeBase: prev.edgeBase,
+              lowGapToleranceEnabled: prev.lowGapToleranceEnabled,
+              lowGapTolerancePct: prev.lowGapTolerancePct,
               samplingRate,
               sampleCount,
               pulseCount,
@@ -176,6 +182,9 @@ export function App() {
 
   const updateFreqMode = useCallback((mode: FreqMode) => {
     setState((prev) => {
+      // PWM 测量直通数据只包含仪器输出的频率/周期/占空比，没有原始边沿，
+      // 不能推导低电平间隔；保持原模式以免将频率数据错误标记为间隔。
+      if (mode === 'low-gap' && (!prev.transTimes || !prev.transLevels)) return prev;
       if (!prev.transTimes || !prev.transLevels) return { ...prev, freqMode: mode };
       const allPts = computeFreqFromTransitions(
         prev.transTimes,
@@ -183,7 +192,9 @@ export function App() {
         prev.format,
         mode,
         prev.dutyCorrect,
-        prev.edgeBase
+        prev.edgeBase,
+        prev.lowGapToleranceEnabled,
+        prev.lowGapTolerancePct
       );
       return {
         ...prev,
@@ -196,6 +207,11 @@ export function App() {
         accelSegs: [],
         rangeDataIdxStart: null,
         rangeDataIdxEnd: null,
+        // 低电平间隔不是频率，不能把它送入频率导数/加减速分析。
+        showDerivs: mode === 'low-gap' ? false : prev.showDerivs,
+        showFreqChart: mode === 'low-gap' ? true : prev.showFreqChart,
+        showAccelChart: mode === 'low-gap' ? false : prev.showAccelChart,
+        showJerkChart: mode === 'low-gap' ? false : prev.showJerkChart,
       };
     });
   }, []);
@@ -210,7 +226,9 @@ export function App() {
         prev.format,
         prev.freqMode,
         on,
-        prev.edgeBase
+        prev.edgeBase,
+        prev.lowGapToleranceEnabled,
+        prev.lowGapTolerancePct
       );
       return {
         ...prev,
@@ -236,11 +254,50 @@ export function App() {
         prev.format,
         prev.freqMode,
         prev.dutyCorrect,
-        base
+        base,
+        prev.lowGapToleranceEnabled,
+        prev.lowGapTolerancePct
       );
       return {
         ...prev,
         edgeBase: base,
+        allFreqPts: allPts,
+        freqPts: allPts,
+        cursorA: null,
+        cursorB: null,
+        accelSegs: [],
+        rangeDataIdxStart: null,
+        rangeDataIdxEnd: null,
+      };
+    });
+  }, []);
+
+  const updateLowGapTolerance = useCallback((enabled: boolean, pct: number) => {
+    setState((prev) => {
+      const normalizedPct = Number.isFinite(pct)
+        ? Math.max(0, pct)
+        : prev.lowGapTolerancePct;
+      if (!prev.transTimes || !prev.transLevels) {
+        return {
+          ...prev,
+          lowGapToleranceEnabled: enabled,
+          lowGapTolerancePct: normalizedPct,
+        };
+      }
+      const allPts = computeFreqFromTransitions(
+        prev.transTimes,
+        prev.transLevels,
+        prev.format,
+        prev.freqMode,
+        prev.dutyCorrect,
+        prev.edgeBase,
+        enabled,
+        normalizedPct
+      );
+      return {
+        ...prev,
+        lowGapToleranceEnabled: enabled,
+        lowGapTolerancePct: normalizedPct,
         allFreqPts: allPts,
         freqPts: allPts,
         cursorA: null,
@@ -354,6 +411,7 @@ export function App() {
       onFreqModeChange={updateFreqMode}
       onDutyCorrectChange={updateDutyCorrect}
       onEdgeBaseChange={updateEdgeBase}
+      onLowGapToleranceChange={updateLowGapTolerance}
       onAccelDetect={updateAccelSegs}
       onCursorChange={updateCursor}
       onRangeModeChange={setRangeMode}

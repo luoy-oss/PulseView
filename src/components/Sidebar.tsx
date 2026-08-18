@@ -9,6 +9,7 @@ interface Props {
   fallingCount: number;
   duration: number;
   allFreqPts: FreqPoint[];
+  lowGapMode: boolean;
 }
 
 export function Sidebar({
@@ -18,6 +19,7 @@ export function Sidebar({
   fallingCount,
   duration,
   allFreqPts,
+  lowGapMode,
 }: Props) {
   const stats = computeStats(allFreqPts);
 
@@ -35,12 +37,15 @@ export function Sidebar({
         <>
           <div className="sidebar-divider" />
           <div className="sidebar-section">
-            <StatRow label="频率点数" value={allFreqPts.length.toLocaleString()} cls="accent" />
-            <StatRow label="频率最小值" value={fmtFreq(stats.min)} cls="green" />
-            <StatRow label="频率最大值" value={fmtFreq(stats.max)} cls="rose" />
-            <StatRow label="频率均值" value={fmtFreq(stats.avg)} cls="accent" />
-            <StatRow label="标准差" value={fmtFreq(stats.std)} />
-            <StatRow label="变异系数" value={stats.cv.toFixed(4) + '%'} />
+            <StatRow label={lowGapMode ? '间隔点数' : '频率点数'} value={allFreqPts.length.toLocaleString()} cls="accent" />
+            <StatRow label={lowGapMode ? '间隔最小值' : '频率最小值'} value={lowGapMode ? fmtTime(stats.min) : fmtFreq(stats.min)} cls="green" />
+            <StatRow label={lowGapMode ? '间隔最大值' : '频率最大值'} value={lowGapMode ? fmtTime(stats.max) : fmtFreq(stats.max)} cls="rose" />
+            <StatRow label={lowGapMode ? '间隔均值' : '频率均值'} value={lowGapMode ? fmtTime(stats.avg) : fmtFreq(stats.avg)} cls="accent" />
+            <StatRow label="标准差" value={lowGapMode ? fmtTime(stats.std) : fmtFreq(stats.std)} />
+            <StatRow
+              label="变异系数"
+              value={lowGapMode && stats.avg === 0 ? '—' : stats.cv.toFixed(4) + '%'}
+            />
           </div>
         </>
       )}

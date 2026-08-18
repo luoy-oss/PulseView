@@ -15,6 +15,7 @@ interface Props {
   onFreqModeChange: (mode: FreqMode) => void;
   onDutyCorrectChange: (on: boolean) => void;
   onEdgeBaseChange: (base: EdgeBase) => void;
+  onLowGapToleranceChange: (enabled: boolean, pct: number) => void;
   onAccelDetect: (segs: AccelSegment[]) => void;
   onCursorChange: (which: 'A' | 'B', idx: number | null) => void;
   onRangeModeChange: (mode: boolean) => void;
@@ -35,6 +36,7 @@ export function AppShell({
   onFreqModeChange,
   onDutyCorrectChange,
   onEdgeBaseChange,
+  onLowGapToleranceChange,
   onAccelDetect,
   onCursorChange,
   onRangeModeChange,
@@ -56,7 +58,10 @@ export function AppShell({
         ? state.freqPts[state.freqPts.length - 1].time - state.freqPts[0].time
         : 0;
 
-  const statusLeft = `分析完成 · ${state.allFreqPts.length.toLocaleString()} 频率点`;
+  const isLowGap = state.freqMode === 'low-gap';
+  const statusLeft = `分析完成 · ${state.allFreqPts.length.toLocaleString()} ${
+    isLowGap ? '间隔点' : '频率点'
+  }`;
   const statusRight = `${fmtFreq(state.samplingRate)} · ${fmtTime(dur)}`;
 
   return (
@@ -67,8 +72,12 @@ export function AppShell({
         freqMode={state.freqMode}
         dutyCorrect={state.dutyCorrect}
         edgeBase={state.edgeBase}
+        lowGapToleranceEnabled={state.lowGapToleranceEnabled}
+        lowGapTolerancePct={state.lowGapTolerancePct}
+        canComputeLowGap={Boolean(state.transTimes && state.transLevels)}
         onDutyCorrectChange={onDutyCorrectChange}
         onEdgeBaseChange={onEdgeBaseChange}
+        onLowGapToleranceChange={onLowGapToleranceChange}
         onFreqModeChange={onFreqModeChange}
         onFile={onFile}
         onRangeModeChange={onRangeModeChange}
@@ -85,6 +94,7 @@ export function AppShell({
           fallingCount={fallingCount}
           duration={dur}
           allFreqPts={state.allFreqPts}
+          lowGapMode={isLowGap}
         />
         <div className="chart-area">
           {state.showDerivs ? (
@@ -130,16 +140,18 @@ export function AppShell({
               resetZoomRef={resetZoomRef}
             />
           )}
-          <AnalysisPanel
-            allFreqPts={state.allFreqPts}
-            cursorA={state.cursorA}
-            cursorB={state.cursorB}
-            freqPts={state.freqPts}
-            accelSegs={state.accelSegs}
-            risingEdges={state.risingEdges}
-            onAccelDetect={onAccelDetect}
-            onCursorChange={onCursorChange}
-          />
+          {!isLowGap && (
+            <AnalysisPanel
+              allFreqPts={state.allFreqPts}
+              cursorA={state.cursorA}
+              cursorB={state.cursorB}
+              freqPts={state.freqPts}
+              accelSegs={state.accelSegs}
+              risingEdges={state.risingEdges}
+              onAccelDetect={onAccelDetect}
+              onCursorChange={onCursorChange}
+            />
+          )}
         </div>
       </div>
       <StatusBar left={statusLeft} right={statusRight} />
