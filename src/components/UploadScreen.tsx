@@ -7,7 +7,8 @@ interface Props {
 }
 
 export function UploadScreen({ onFile, progress }: Props) {
-  const inputRef = useRef<HTMLInputElement>(null);
+  const normalInputRef = useRef<HTMLInputElement>(null);
+  const abInputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
 
   const handleDrop = useCallback(
@@ -20,16 +21,11 @@ export function UploadScreen({ onFile, progress }: Props) {
     [onFile]
   );
 
-  const chooseFile = (mode: 'normal' | 'ab') => {
-    inputRef.current?.setAttribute('data-mode', mode);
-    inputRef.current?.click();
-  };
-
   return (
     <div className="upload-overlay">
       <div
         className={`upload-card ${dragOver ? 'drag-over' : ''}`}
-        onClick={() => chooseFile('normal')}
+        onClick={() => normalInputRef.current?.click()}
         onDragEnter={(e) => {
           e.preventDefault();
           setDragOver(true);
@@ -49,23 +45,26 @@ export function UploadScreen({ onFile, progress }: Props) {
         <p className="upload-sub">拖放 .vcd / .txt / .sr / .bin / .csv 文件到此处</p>
         <p className="sep">· · ·</p>
         <div className="upload-actions">
-          <button className="upload-btn" onClick={(e) => { e.stopPropagation(); chooseFile('normal'); }}>
+          <button className="upload-btn" onClick={(e) => { e.stopPropagation(); normalInputRef.current?.click(); }}>
             普通频率分析
           </button>
-          <button className="upload-btn upload-btn-alt" onClick={(e) => { e.stopPropagation(); chooseFile('ab'); }}>
+          <button className="upload-btn upload-btn-alt" onClick={(e) => { e.stopPropagation(); abInputRef.current?.click(); }}>
             分析 AB 相数据文件
           </button>
         </div>
           <input
-            ref={inputRef}
+            ref={normalInputRef}
             type="file"
             accept=".vcd,.txt,.csv,.sr,.bin"
             hidden
-            onChange={(e) => {
-              const mode = e.currentTarget.getAttribute('data-mode') as 'normal' | 'ab' | null;
-              const f = e.target.files?.[0];
-              if (f) onFile(f, mode === 'ab' ? 'ab' : 'normal');
-            }}
+            onChange={(e) => { const f = e.target.files?.[0]; if (f) onFile(f, 'normal'); e.currentTarget.value = ''; }}
+          />
+          <input
+            ref={abInputRef}
+            type="file"
+            accept=".vcd"
+            hidden
+            onChange={(e) => { const f = e.target.files?.[0]; if (f) onFile(f, 'ab'); e.currentTarget.value = ''; }}
           />
         {progress && (
           <div className="upload-progress">
