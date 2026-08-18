@@ -25,7 +25,6 @@ export function UploadScreen({ onFile, progress }: Props) {
     <div className="upload-overlay">
       <div
         className={`upload-card ${dragOver ? 'drag-over' : ''}`}
-        onClick={() => normalInputRef.current?.click()}
         onDragEnter={(e) => {
           e.preventDefault();
           setDragOver(true);
