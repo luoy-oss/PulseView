@@ -1,56 +1,138 @@
-import { AbAnalysis, AbChannel } from './types';
+import { AbAnalysis, AbChannel, AbFreqPoint } from './types';
+
+const FORWARD = new Set(['0>1', '1>3', '3>2', '2>0']);
+const REVERSE = new Set(['0>2', '2>3', '3>1', '1>0']);
+
+function mean(values: number[]): number {
+  return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0;
+}
+
+function getEdges(channel: AbChannel): { time: number; level: number }[] {
+  const edges: { time: number; level: number }[] = [];
+  for (let i = 1; i < channel.transitions.length; i++) {
+    edges.push({ time: channel.transitions[i], level: channel.levels[i] });
+  }
+  return edges;
+}
 
 export function computeAbAnalysis(a: AbChannel, b: AbChannel): AbAnalysis {
-  const events: { time: number; channel: 0 | 1; level: number }[] = [];
-  for (let i = 1; i < a.transitions.length; i++) events.push({ time: a.transitions[i], channel: 0, level: a.levels[i] });
-  for (let i = 1; i < b.transitions.length; i++) events.push({ time: b.transitions[i], channel: 1, level: b.levels[i] });
-  events.sort((x, y) => x.time - y.time);
-  let state = ((a.levels[0] || 0) << 1) | (b.levels[0] || 0);
+  const aEdges = getEdges(a);
+  const bEdges = getEdges(b);
+  const changes = [
+    ...Array.from(a.transitions, (time, index) => ({
+      time,
+      channel: 0 as const,
+      level: a.levels[index],
+    })),
+    ...Array.from(b.transitions, (time, index) => ({
+      time,
+      channel: 1 as const,
+      level: b.levels[index],
+    })),
+  ].sort((left, right) => left.time - right.time);
+
+  let state = 0;
+  let knownMask = 0;
+  let cycleStart = 0;
+  let cycleSteps = 0;
+  let cycleDirection = 0;
   let forwardCycles = 0;
   let reverseCycles = 0;
   let invalidTransitions = 0;
-  const periods: number[] = [];
-  const aEdges: { time: number; level: number }[] = [];
-  const bEdges: { time: number; level: number }[] = [];
-  for (const event of events) {
-    (event.channel === 0 ? aEdges : bEdges).push({ time: event.time, level: event.level });
-  }
-  const forwardTransitions = new Set(['0>1', '1>3', '3>2', '2>0']);
-  const reverseTransitions = new Set(['0>2', '2>3', '3>1', '1>0']);
-  for (const event of events) {
-    const nextState = event.channel === 0 ? ((event.level << 1) | (state & 1)) : ((state & 2) | event.level);
+  const freqPoints: AbFreqPoint[] = [];
+
+  for (let index = 0; index < changes.length;) {
+    const time = changes[index].time;
+    let nextState = state;
+    let groupMask = 0;
+    while (index < changes.length && changes[index].time === time) {
+      const change = changes[index];
+      if (change.channel === 0) {
+        nextState = (nextState & 1) | (change.level << 1);
+        groupMask |= 2;
+      } else {
+        nextState = (nextState & 2) | change.level;
+        groupMask |= 1;
+      }
+      index++;
+    }
+
+    const wasFullyKnown = knownMask === 3;
+    knownMask |= groupMask;
+    if (!wasFullyKnown) {
+      state = nextState;
+      continue;
+    }
+
     const transition = `${state}>${nextState}`;
-    if (forwardTransitions.has(transition)) forwardCycles += nextState === 0 ? 1 : 0;
-    else if (reverseTransitions.has(transition)) reverseCycles += nextState === 0 ? 1 : 0;
-    else if (nextState !== state) invalidTransitions++;
+    const direction = FORWARD.has(transition) ? 1 : REVERSE.has(transition) ? -1 : 0;
+    if (direction === 0) {
+      if (nextState !== state) invalidTransitions++;
+      cycleSteps = 0;
+      cycleDirection = 0;
+      cycleStart = time;
+    } else if (cycleDirection !== direction) {
+      cycleDirection = direction;
+      cycleSteps = 1;
+      cycleStart = time;
+    } else {
+      cycleSteps++;
+    }
+
+    if (cycleSteps >= 4) {
+      const period = time - cycleStart;
+      if (period > 0) {
+        freqPoints.push({
+          time: (cycleStart + time) / 2,
+          freq: direction / period,
+          direction: direction > 0 ? 'forward' : 'reverse',
+        });
+        if (direction > 0) forwardCycles++;
+        else reverseCycles++;
+      }
+      cycleSteps = 0;
+      cycleStart = time;
+    }
     state = nextState;
   }
+
   const phases: number[] = [];
   for (const edge of aEdges) {
     let nearest: { time: number; level: number } | null = null;
     for (const candidate of bEdges) {
       if (candidate.level !== edge.level) continue;
-      if (!nearest || Math.abs(candidate.time - edge.time) < Math.abs(nearest.time - edge.time)) nearest = candidate;
+      if (!nearest || Math.abs(candidate.time - edge.time) < Math.abs(nearest.time - edge.time)) {
+        nearest = candidate;
+      }
     }
     if (nearest) phases.push(nearest.time - edge.time);
   }
+
   const bRises = bEdges.filter((edge) => edge.level === 1).map((edge) => edge.time);
-  for (let i = 1; i < bRises.length; i++) periods.push(bRises[i] - bRises[i - 1]);
-  const mean = (values: number[]) => values.length ? values.reduce((x, y) => x + y, 0) / values.length : 0;
+  const periods: number[] = [];
+  for (let index = 1; index < bRises.length; index++) {
+    periods.push(bRises[index] - bRises[index - 1]);
+  }
   const meanPhase = mean(phases);
-  const phaseStd = phases.length > 1 ? Math.sqrt(mean(phases.map((p) => (p - meanPhase) ** 2))) : 0;
-  const quarter = phases.length ? mean(phases.map((p) => Math.abs(p))) : 0;
-  const cycles = forwardCycles + reverseCycles;
+  const phaseStd = phases.length > 1
+    ? Math.sqrt(mean(phases.map((phase) => (phase - meanPhase) ** 2)))
+    : 0;
+
   return {
-    aEdges: Math.max(0, a.transitions.length - 1),
-    bEdges: Math.max(0, b.transitions.length - 1),
-    cycles,
+    freqPoints,
+    aPulses: aEdges.filter((edge) => edge.level === 1).length,
+    bPulses: bRises.length,
+    aEdges: aEdges.length,
+    bEdges: bEdges.length,
+    cycles: forwardCycles + reverseCycles,
     forwardCycles,
     reverseCycles,
     invalidTransitions,
-    meanPeriod: periods.length ? mean(periods) : quarter * 4,
+    meanPeriod: mean(periods),
     meanPhase,
     phaseStd,
-    phaseLead: Math.abs(meanPhase) < (phaseStd || 1e-15) ? '无明显超前' : meanPhase > 0 ? 'A 超前 B' : 'B 超前 A',
+    phaseLead: Math.abs(meanPhase) < (phaseStd || 1e-15)
+      ? '无明显超前'
+      : meanPhase > 0 ? 'A 超前 B' : 'B 超前 A',
   };
 }

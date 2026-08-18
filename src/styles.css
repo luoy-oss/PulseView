@@ -194,6 +194,14 @@ body {
 .ab-metric strong { color: var(--text-2); font: 600 14px var(--fx); }
 .ab-metric strong.green { color: var(--green); } .ab-metric strong.rose { color: var(--rose); } .ab-metric strong.teal { color: var(--teal); } .ab-metric strong.accent { color: var(--accent); }
 .ab-foot { margin-top: 14px; }
+.ab-frequency { margin-top: 16px; padding: 14px 16px; background: var(--surface); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); }
+.ab-section-title { color: var(--text-2); font-size: 12px; font-weight: 600; margin-bottom: 10px; }
+.ab-chart-wrap { position: relative; height: 210px; padding: 4px 0; }
+.ab-chart-wrap svg { width: 100%; height: 100%; background: linear-gradient(to bottom, rgba(126,198,153,.035) 0 49.5%, transparent 49.5% 50.5%, rgba(224,108,117,.035) 50.5% 100%); }
+.ab-chart-label { position: absolute; left: 8px; font: 10px var(--fx); z-index: 1; }
+.ab-chart-label.positive { top: 8px; color: var(--green); }
+.ab-chart-label.negative { bottom: 8px; color: var(--rose); }
+.ab-chart-empty { height: 160px; display: flex; align-items: center; justify-content: center; color: var(--text-3); font-size: 12px; }
 @media (max-width: 760px) { .ab-main { padding: 12px; } .ab-wave-row { grid-template-columns: 90px 1fr; } .ab-grid { grid-template-columns: repeat(2, 1fr); } }
 
 .upload-progress {

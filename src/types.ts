@@ -63,6 +63,9 @@ export interface AbParseResult {
 }
 
 export interface AbAnalysis {
+  freqPoints: AbFreqPoint[];
+  aPulses: number;
+  bPulses: number;
   aEdges: number;
   bEdges: number;
   cycles: number;
@@ -73,6 +76,12 @@ export interface AbAnalysis {
   meanPhase: number;
   phaseStd: number;
   phaseLead: 'A 超前 B' | 'B 超前 A' | '无明显超前';
+}
+
+export interface AbFreqPoint {
+  time: number;
+  freq: number;
+  direction: 'forward' | 'reverse';
 }
 
 export interface AppState {
