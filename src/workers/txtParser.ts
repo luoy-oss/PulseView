@@ -1,5 +1,7 @@
 /// <reference lib="webworker" />
 
+import { isTxtEdgeList, parseTxtEdgeList } from '../txtFormat';
+
 // sigrok PulseView "PWM 测量"导出格式（每区间三行，测量类型分组排列）：
 //   223191-24224567 PWM: Duty cycles: 50.000008%
 //   223191-24224567 PWM: Periods: 1.0 s
@@ -124,6 +126,36 @@ self.onmessage = function (e: MessageEvent) {
   const buf: ArrayBuffer = e.data.buffer;
   const text = new TextDecoder('utf-8', { fatal: false }).decode(new Uint8Array(buf));
   const lines = text.split(/\r?\n/);
+
+  if (isTxtEdgeList(lines)) {
+    const parsed = parseTxtEdgeList(lines);
+    if (parsed.transTimes.length < 2 || !parsed.samplingRate) {
+      (self as unknown as Worker).postMessage({
+        type: 'error',
+        message: '未解析到有效的 Time[s], 电平边沿数据。',
+      });
+      return;
+    }
+    (self as unknown as Worker).postMessage(
+      {
+        type: 'done',
+        samplingRate: parsed.samplingRate,
+        sampleCount: parsed.sampleCount,
+        risingEdges: parsed.risingEdges,
+        fallingEdges: parsed.fallingEdges,
+        transTimes: parsed.transTimes,
+        transLevels: parsed.transLevels,
+        format: 'txt',
+      },
+      [
+        parsed.risingEdges.buffer,
+        parsed.fallingEdges.buffer,
+        parsed.transTimes.buffer,
+        parsed.transLevels.buffer,
+      ]
+    );
+    return;
+  }
 
   // 前 200 行内出现 PWM 测量行即按该格式解析
   let isPwm = false;
