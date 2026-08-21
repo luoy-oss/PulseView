@@ -1,5 +1,5 @@
 import { useRef, useCallback } from 'react';
-import { EdgeBase, FreqPoint, FreqMode } from '../types';
+import { EdgeBase, FreqPoint, FreqMode, LogicPolarity } from '../types';
 
 interface Props {
   fileName: string;
@@ -7,6 +7,8 @@ interface Props {
   freqMode: FreqMode;
   dutyCorrect: boolean;
   edgeBase: EdgeBase;
+  logicPolarity: LogicPolarity;
+  canChangeLogicPolarity: boolean;
   lowGapToleranceEnabled: boolean;
   lowGapTolerancePct: number;
   canComputeLowGap: boolean;
@@ -14,6 +16,7 @@ interface Props {
   lowGapThreshold: number;
   onDutyCorrectChange: (on: boolean) => void;
   onEdgeBaseChange: (base: EdgeBase) => void;
+  onLogicPolarityChange: (polarity: LogicPolarity) => void;
   onLowGapToleranceChange: (enabled: boolean, pct: number) => void;
   onLowGapAnnotationChange: (enabled: boolean, threshold: number) => void;
   onFreqModeChange: (mode: FreqMode) => void;
@@ -31,6 +34,8 @@ export function Header({
   freqMode,
   dutyCorrect,
   edgeBase,
+  logicPolarity,
+  canChangeLogicPolarity,
   lowGapToleranceEnabled,
   lowGapTolerancePct,
   canComputeLowGap,
@@ -38,6 +43,7 @@ export function Header({
   lowGapThreshold,
   onDutyCorrectChange,
   onEdgeBaseChange,
+  onLogicPolarityChange,
   onLowGapToleranceChange,
   onLowGapAnnotationChange,
   onFreqModeChange,
@@ -87,6 +93,25 @@ export function Header({
             onClick={() => onFreqModeChange('pulse')}
           >
             脉冲宽度
+          </button>
+          <span className="btn btn-sm edge-base-label" title="按文件中的电平定义计算，或将 0/1 逻辑取反后计算">
+            逻辑
+          </span>
+          <button
+            className={`btn btn-sm ${logicPolarity === 'normal' ? 'btn-p' : ''}`}
+            disabled={!canChangeLogicPolarity}
+            title="时间 0 为 0，按正逻辑解释电平"
+            onClick={() => onLogicPolarityChange('normal')}
+          >
+            正逻辑
+          </button>
+          <button
+            className={`btn btn-sm ${logicPolarity === 'inverted' ? 'btn-p' : ''}`}
+            disabled={!canChangeLogicPolarity}
+            title="时间 0 为 1，将文件中的 0/1 电平取反后计算"
+            onClick={() => onLogicPolarityChange('inverted')}
+          >
+            反向逻辑
           </button>
           <button
             className={`btn btn-sm ${freqMode === 'rising' ? 'btn-p' : ''}`}

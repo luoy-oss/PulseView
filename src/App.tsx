@@ -1,9 +1,11 @@
 import { useState, useCallback, useRef } from 'react';
 import { UploadScreen } from './components/UploadScreen';
 import { AppShell } from './components/AppShell';
-import { AbChannel, AccelSegment, AppState, EdgeBase, FreqMode, FreqPoint } from './types';
+import { AbChannel, AccelSegment, AppState, EdgeBase, FreqMode, FreqPoint, LogicPolarity } from './types';
 import {
   computeFreqFromTransitions,
+  deriveEdgesFromTransitions,
+  invertTransitionLevels,
   computeLowGapMarkers,
   LOW_GAP_DEFAULT_THRESHOLD,
   LOW_GAP_MIN_THRESHOLD,
@@ -38,6 +40,7 @@ const initialState: AppState = {
   freqMode: 'falling',
   dutyCorrect: false,
   edgeBase: 'falling',
+  logicPolarity: 'normal',
   lowGapToleranceEnabled: false,
   lowGapTolerancePct: 0.01,
   lowGapAnnotationEnabled: true,
@@ -136,17 +139,22 @@ export function App() {
             return;
           }
 
-          // 总脉冲数：从第一个 1 开始，每个 "1→0"（一个高电平脉冲）计一个脉冲
-          let pulseCount = 0;
-          for (let i = 0; i < transLevels.length - 1; i++) {
-            if (transLevels[i] === 1 && transLevels[i + 1] === 0) pulseCount++;
-          }
-
           setState((prev) => {
+            const logicalLevels = prev.logicPolarity === 'inverted'
+              ? invertTransitionLevels(transLevels)
+              : transLevels;
+            const logicalEdges = deriveEdgesFromTransitions(transTimes, logicalLevels);
+
+            // 总脉冲数：从第一个 1 开始，每个 "1→0"（一个高电平脉冲）计一个脉冲
+            let pulseCount = 0;
+            for (let i = 1; i < logicalLevels.length; i++) {
+              if (logicalLevels[i - 1] === 1 && logicalLevels[i] === 0) pulseCount++;
+            }
+
             // 按用户当前选择的频率计算模式、占空比修正与基准边沿生成频率点
             const allPts = computeFreqFromTransitions(
               transTimes,
-              transLevels,
+              logicalLevels,
               fmt,
               prev.freqMode,
               prev.dutyCorrect,
@@ -166,14 +174,15 @@ export function App() {
               samplingRate,
               sampleCount,
               pulseCount,
-              risingEdges,
-              fallingEdges,
+              risingEdges: logicalEdges.risingEdges,
+              fallingEdges: logicalEdges.fallingEdges,
               transTimes,
-              transLevels,
+              transLevels: logicalLevels,
               allFreqPts: allPts,
               freqPts: allPts,
               fileName: file.name,
               format: fmt,
+              logicPolarity: prev.logicPolarity,
             };
           });
           setParsing(false);
@@ -186,6 +195,48 @@ export function App() {
       };
 
       worker.postMessage({ type: 'parse', buffer: buf, mode }, [buf]);
+    });
+  }, []);
+
+  const updateLogicPolarity = useCallback((polarity: LogicPolarity) => {
+    setState((prev) => {
+      if (polarity === prev.logicPolarity || !prev.transTimes || !prev.transLevels) {
+        return { ...prev, logicPolarity: polarity };
+      }
+      const transLevels = invertTransitionLevels(prev.transLevels);
+      const edges = deriveEdgesFromTransitions(prev.transTimes, transLevels);
+      const allPts = computeFreqFromTransitions(
+        prev.transTimes,
+        transLevels,
+        prev.format,
+        prev.freqMode,
+        prev.dutyCorrect,
+        prev.edgeBase,
+        prev.lowGapToleranceEnabled,
+        prev.lowGapTolerancePct
+      );
+      let pulseCount = 0;
+      for (let i = 1; i < transLevels.length; i++) {
+        if (transLevels[i - 1] === 1 && transLevels[i] === 0) pulseCount++;
+      }
+      return {
+        ...prev,
+        logicPolarity: polarity,
+        transLevels,
+        risingEdges: edges.risingEdges,
+        fallingEdges: edges.fallingEdges,
+        pulseCount,
+        allFreqPts: allPts,
+        freqPts: allPts,
+        cursorA: null,
+        cursorB: null,
+        accelSegs: [],
+        rangeMode: false,
+        rangeStart: null,
+        rangeEnd: null,
+        rangeDataIdxStart: null,
+        rangeDataIdxEnd: null,
+      };
     });
   }, []);
 
@@ -425,6 +476,7 @@ export function App() {
       onFreqModeChange={updateFreqMode}
       onDutyCorrectChange={updateDutyCorrect}
       onEdgeBaseChange={updateEdgeBase}
+      onLogicPolarityChange={updateLogicPolarity}
       onLowGapToleranceChange={updateLowGapTolerance}
       onLowGapAnnotationChange={updateLowGapAnnotation}
       onAccelDetect={updateAccelSegs}

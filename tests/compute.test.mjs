@@ -3,6 +3,8 @@ import {
   computeFreqFromTransitions,
   computeLowGapMarkers,
   LOW_GAP_MIN_THRESHOLD,
+  deriveEdgesFromTransitions,
+  invertTransitionLevels,
 } from '../src/compute.ts';
 
 const levels = new Int8Array([0, 1, 0, 1, 0, 1, 0, 1, 0]);
@@ -63,5 +65,22 @@ const minimumThresholdMarkers = computeLowGapMarkers(
 );
 assert.equal(LOW_GAP_MIN_THRESHOLD, 0.0009);
 assert.equal(minimumThresholdMarkers.length, 0);
+
+const normalTimes = new Float64Array([0, 1, 2, 4, 5, 6]);
+const normalLevels = new Int8Array([0, 1, 0, 1, 0, 1]);
+const invertedLevels = invertTransitionLevels(normalLevels);
+assert.deepEqual([...invertedLevels], [1, 0, 1, 0, 1, 0]);
+const invertedEdges = deriveEdgesFromTransitions(normalTimes, invertedLevels);
+assert.deepEqual([...invertedEdges.risingEdges], [2, 5]);
+assert.deepEqual([...invertedEdges.fallingEdges], [1, 4, 6]);
+
+const normalPoints = computeFreqFromTransitions(normalTimes, normalLevels, 'txt', 'falling');
+const invertedPoints = computeFreqFromTransitions(normalTimes, invertedLevels, 'txt', 'falling');
+assert.equal(normalPoints[0].dutyCycle, 0.5);
+assert.equal(invertedPoints[0].dutyCycle, 0.5);
+assert.equal(normalPoints[0].freq, 0.5);
+assert.equal(invertedPoints[0].freq, 0.25);
+assert.equal(normalPoints[1].freq, 1 / 3);
+assert.equal(invertedPoints[1].freq, 0.5);
 
 console.log('low-gap compute tests passed');

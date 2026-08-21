@@ -4,6 +4,28 @@ import type { LowGapMarker } from './types';
 export const LOW_GAP_MIN_THRESHOLD = 0.0009;
 export const LOW_GAP_DEFAULT_THRESHOLD = 0.001;
 
+export function deriveEdgesFromTransitions(
+  transTimes: Float64Array,
+  transLevels: Int8Array
+): { risingEdges: Float64Array; fallingEdges: Float64Array } {
+  const rises: number[] = [];
+  const falls: number[] = [];
+  for (let i = 1; i < transTimes.length; i++) {
+    if (transLevels[i] === 1 && transLevels[i - 1] === 0) rises.push(transTimes[i]);
+    else if (transLevels[i] === 0 && transLevels[i - 1] === 1) falls.push(transTimes[i]);
+  }
+  return {
+    risingEdges: new Float64Array(rises),
+    fallingEdges: new Float64Array(falls),
+  };
+}
+
+export function invertTransitionLevels(transLevels: Int8Array): Int8Array {
+  const inverted = new Int8Array(transLevels.length);
+  for (let i = 0; i < transLevels.length; i++) inverted[i] = transLevels[i] === 1 ? 0 : 1;
+  return inverted;
+}
+
 export function computeLowGapMarkers(
   transTimes: Float64Array,
   transLevels: Int8Array,

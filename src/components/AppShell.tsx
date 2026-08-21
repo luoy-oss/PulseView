@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
-import { AppState, AccelSegment, EdgeBase, FreqMode } from '../types';
+import { AppState, AccelSegment, EdgeBase, FreqMode, LogicPolarity } from '../types';
 import { Header } from './Header';
 import { Sidebar } from './Sidebar';
 import { FreqChart } from './FreqChart';
@@ -16,6 +16,7 @@ interface Props {
   onFreqModeChange: (mode: FreqMode) => void;
   onDutyCorrectChange: (on: boolean) => void;
   onEdgeBaseChange: (base: EdgeBase) => void;
+  onLogicPolarityChange: (polarity: LogicPolarity) => void;
   onLowGapToleranceChange: (enabled: boolean, pct: number) => void;
   onLowGapAnnotationChange: (enabled: boolean, threshold: number) => void;
   onAccelDetect: (segs: AccelSegment[]) => void;
@@ -38,6 +39,7 @@ export function AppShell({
   onFreqModeChange,
   onDutyCorrectChange,
   onEdgeBaseChange,
+  onLogicPolarityChange,
   onLowGapToleranceChange,
   onLowGapAnnotationChange,
   onAccelDetect,
@@ -100,6 +102,9 @@ export function AppShell({
         lowGapThreshold={state.lowGapThreshold}
         onDutyCorrectChange={onDutyCorrectChange}
         onEdgeBaseChange={onEdgeBaseChange}
+        logicPolarity={state.logicPolarity}
+        canChangeLogicPolarity={Boolean(state.transTimes && state.transLevels)}
+        onLogicPolarityChange={onLogicPolarityChange}
         onLowGapToleranceChange={onLowGapToleranceChange}
         onLowGapAnnotationChange={onLowGapAnnotationChange}
         onFreqModeChange={onFreqModeChange}
