@@ -109,7 +109,8 @@ export function computeFreqFromTransitions(
   dutyCorrect = false,
   edgeBase: 'falling' | 'rising' = 'falling',
   lowGapToleranceEnabled = false,
-  lowGapTolerancePct = 0
+  lowGapTolerancePct = 0,
+  defaultLevel: 0 | 1 = 0
 ): FreqPoint[] {
   if (!transTimes || transTimes.length < 3) return [];
 
@@ -177,7 +178,7 @@ export function computeFreqFromTransitions(
     // （如 4.vcd 中 R0→R1=502µs 使首个频率点低至 1991Hz，偏离真实扫频
     // 起点 ~3400Hz），必须抛开：首脉冲固定按 50% 占空比口径计算
     // （freq = 1/(2×脉宽)，period = 2×脉宽），周期从第二个上升沿对开始。
-    if (rises.length < 2) return pts;
+    if (rises.length === 0) return pts;
     if (rises[0] + 1 < transTimes.length) {
       const w0 = transTimes[rises[0] + 1] - transTimes[rises[0]]; // 首脉冲脉宽
       if (w0 > 0) {
@@ -199,6 +200,26 @@ export function computeFreqFromTransitions(
         freq: 1 / dt,
         period: dt, // 周期（上升沿间隔）
       });
+    }
+    const lastRise = rises[rises.length - 1];
+    const terminalFall = lastRise + 1;
+    if (
+      terminalFall < transTimes.length &&
+      terminalFall === transTimes.length - 1 &&
+      transLevels[terminalFall] === defaultLevel
+    ) {
+      const width = transTimes[terminalFall] - transTimes[lastRise];
+      if (width > 0) {
+        const terminalPoint: FreqPoint = {
+          time: transTimes[lastRise],
+          freq: 1 / (2 * width),
+          period: 2 * width,
+          dutyCycle: 0.5,
+        };
+        const previous = pts.length > 0 ? pts[pts.length - 1] : undefined;
+        if (previous?.time === terminalPoint.time) pts[pts.length - 1] = terminalPoint;
+        else pts.push(terminalPoint);
+      }
     }
     return pts;
   }
@@ -240,11 +261,15 @@ export function computeFreqFromTransitions(
       if (period <= 0) continue;
       const riseIdx = rises[k - f0]; // 该周期内含的高电平脉冲上升沿
       const w = riseIdx < falls[k] ? transTimes[falls[k]] - transTimes[riseIdx] : 0;
+      const isTerminalBoundaryPulse =
+        k === falls.length - 1 &&
+        falls[k] === transTimes.length - 1 &&
+        transLevels[falls[k]] === defaultLevel;
       pts.push({
         time: (transTimes[falls[k - 1]] + transTimes[falls[k]]) / 2,
-        freq: 1 / period,
-        period,
-        dutyCycle: w > 0 ? w / period : 0.5,
+        freq: isTerminalBoundaryPulse && w > 0 ? 1 / (2 * w) : 1 / period,
+        period: isTerminalBoundaryPulse && w > 0 ? 2 * w : period,
+        dutyCycle: isTerminalBoundaryPulse ? 0.5 : w > 0 ? w / period : 0.5,
       });
     }
     return pts;
@@ -278,10 +303,16 @@ export function computeFreqFromTransitions(
           : transTimes[rises[k]] - transTimes[rises[k - 1]];
       duty = period > 0 ? w / period : 0.5;
     }
+    const isTerminalBoundaryPulse =
+      i + 1 === transTimes.length - 1 && transLevels[i + 1] === defaultLevel;
+    if (isTerminalBoundaryPulse) {
+      period = 2 * w;
+      duty = 0.5;
+    }
     pts.push({
       time: transTimes[i], // 上升沿时刻
-      freq: dutyCorrect ? 1 / period : 1 / (2 * w),
-      period: w, // 高电平脉宽
+      freq: dutyCorrect || isTerminalBoundaryPulse ? 1 / period : 1 / (2 * w),
+      period: isTerminalBoundaryPulse ? period : w, // 常规点为高电平脉宽；边界点为推定周期
       dutyCycle: duty,
     });
   }

@@ -1,5 +1,5 @@
 import { useRef, useCallback } from 'react';
-import { EdgeBase, FreqPoint, FreqMode, LogicPolarity } from '../types';
+import { DefaultLevel, EdgeBase, FreqPoint, FreqMode, PulseLevel } from '../types';
 
 interface Props {
   fileName: string;
@@ -7,8 +7,9 @@ interface Props {
   freqMode: FreqMode;
   dutyCorrect: boolean;
   edgeBase: EdgeBase;
-  logicPolarity: LogicPolarity;
-  canChangeLogicPolarity: boolean;
+  pulseLevel: PulseLevel;
+  defaultLevel: DefaultLevel;
+  canChangeWaveformInterpretation: boolean;
   lowGapToleranceEnabled: boolean;
   lowGapTolerancePct: number;
   canComputeLowGap: boolean;
@@ -16,7 +17,8 @@ interface Props {
   lowGapThreshold: number;
   onDutyCorrectChange: (on: boolean) => void;
   onEdgeBaseChange: (base: EdgeBase) => void;
-  onLogicPolarityChange: (polarity: LogicPolarity) => void;
+  onPulseLevelChange: (pulseLevel: PulseLevel) => void;
+  onDefaultLevelChange: (defaultLevel: DefaultLevel) => void;
   onLowGapToleranceChange: (enabled: boolean, pct: number) => void;
   onLowGapAnnotationChange: (enabled: boolean, threshold: number) => void;
   onFreqModeChange: (mode: FreqMode) => void;
@@ -34,8 +36,9 @@ export function Header({
   freqMode,
   dutyCorrect,
   edgeBase,
-  logicPolarity,
-  canChangeLogicPolarity,
+  pulseLevel,
+  defaultLevel,
+  canChangeWaveformInterpretation,
   lowGapToleranceEnabled,
   lowGapTolerancePct,
   canComputeLowGap,
@@ -43,7 +46,8 @@ export function Header({
   lowGapThreshold,
   onDutyCorrectChange,
   onEdgeBaseChange,
-  onLogicPolarityChange,
+  onPulseLevelChange,
+  onDefaultLevelChange,
   onLowGapToleranceChange,
   onLowGapAnnotationChange,
   onFreqModeChange,
@@ -94,38 +98,43 @@ export function Header({
           >
             脉冲宽度
           </button>
-          <span className="btn btn-sm edge-base-label" title="按文件中的电平定义计算，或将 0/1 逻辑取反后计算">
-            逻辑
+          <span className="btn btn-sm edge-base-label" title="选择哪种电平段作为频率脉冲">
+            脉冲
           </span>
           <button
-            className={`btn btn-sm ${logicPolarity === 'normal' ? 'btn-p' : ''}`}
-            disabled={!canChangeLogicPolarity}
-            title="时间 0 为 0，按正逻辑解释电平"
-            onClick={() => onLogicPolarityChange('normal')}
+            className={`btn btn-sm ${pulseLevel === 'high' ? 'btn-p' : ''}`}
+            disabled={!canChangeWaveformInterpretation}
+            title="将高电平段作为待分析的脉冲"
+            onClick={() => onPulseLevelChange('high')}
           >
-            正逻辑
+            高电平脉冲
           </button>
           <button
-            className={`btn btn-sm ${logicPolarity === 'inverted' ? 'btn-p' : ''}`}
-            disabled={!canChangeLogicPolarity}
-            title="时间 0 为 1，将文件中的 0/1 电平取反后计算"
-            onClick={() => onLogicPolarityChange('inverted')}
+            className={`btn btn-sm ${pulseLevel === 'low' ? 'btn-p' : ''}`}
+            disabled={!canChangeWaveformInterpretation}
+            title="将低电平段作为待分析的脉冲"
+            onClick={() => onPulseLevelChange('low')}
           >
-            反向逻辑
+            低电平脉冲
           </button>
+          <span className="btn btn-sm edge-base-label" title="采集开始和结束时信号保持的静止电平；首条电平会自动预选">
+            默认
+          </span>
+          <button className={`btn btn-sm ${defaultLevel === 0 ? 'btn-p' : ''}`} disabled={!canChangeWaveformInterpretation} onClick={() => onDefaultLevelChange(0)}>默认低电平</button>
+          <button className={`btn btn-sm ${defaultLevel === 1 ? 'btn-p' : ''}`} disabled={!canChangeWaveformInterpretation} onClick={() => onDefaultLevelChange(1)}>默认高电平</button>
           <button
             className={`btn btn-sm ${freqMode === 'rising' ? 'btn-p' : ''}`}
             title="相邻两个上升沿的间隔为一个周期：freq = 1 / 周期"
             onClick={() => onFreqModeChange('rising')}
           >
-            上升沿周期
+            按上升沿
           </button>
           <button
             className={`btn btn-sm ${freqMode === 'falling' ? 'btn-p' : ''}`}
             title="以相邻两个下降沿为周期边界：freq = 1 / 下降沿间隔（默认，适合以有效上升沿开始具体时间的数据），时间点取两下降沿中点，首个脉冲以上升沿为时间起点并默认 50% 占空比"
             onClick={() => onFreqModeChange('falling')}
           >
-            下降沿周期
+            按下降沿
           </button>
           <button
             className={`btn btn-sm ${lowGapAnnotationEnabled ? 'btn-p' : ''}`}

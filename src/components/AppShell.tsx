@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
-import { AppState, AccelSegment, EdgeBase, FreqMode, LogicPolarity } from '../types';
+import { AppState, AccelSegment, DefaultLevel, EdgeBase, FreqMode, PulseLevel } from '../types';
 import { Header } from './Header';
 import { Sidebar } from './Sidebar';
 import { FreqChart } from './FreqChart';
@@ -16,7 +16,8 @@ interface Props {
   onFreqModeChange: (mode: FreqMode) => void;
   onDutyCorrectChange: (on: boolean) => void;
   onEdgeBaseChange: (base: EdgeBase) => void;
-  onLogicPolarityChange: (polarity: LogicPolarity) => void;
+  onPulseLevelChange: (pulseLevel: PulseLevel) => void;
+  onDefaultLevelChange: (defaultLevel: DefaultLevel) => void;
   onLowGapToleranceChange: (enabled: boolean, pct: number) => void;
   onLowGapAnnotationChange: (enabled: boolean, threshold: number) => void;
   onAccelDetect: (segs: AccelSegment[]) => void;
@@ -39,7 +40,8 @@ export function AppShell({
   onFreqModeChange,
   onDutyCorrectChange,
   onEdgeBaseChange,
-  onLogicPolarityChange,
+  onPulseLevelChange,
+  onDefaultLevelChange,
   onLowGapToleranceChange,
   onLowGapAnnotationChange,
   onAccelDetect,
@@ -102,9 +104,11 @@ export function AppShell({
         lowGapThreshold={state.lowGapThreshold}
         onDutyCorrectChange={onDutyCorrectChange}
         onEdgeBaseChange={onEdgeBaseChange}
-        logicPolarity={state.logicPolarity}
-        canChangeLogicPolarity={Boolean(state.transTimes && state.transLevels)}
-        onLogicPolarityChange={onLogicPolarityChange}
+        pulseLevel={state.pulseLevel}
+        defaultLevel={state.defaultLevel}
+        canChangeWaveformInterpretation={Boolean(state.transTimes && state.sourceTransLevels)}
+        onPulseLevelChange={onPulseLevelChange}
+        onDefaultLevelChange={onDefaultLevelChange}
         onLowGapToleranceChange={onLowGapToleranceChange}
         onLowGapAnnotationChange={onLowGapAnnotationChange}
         onFreqModeChange={onFreqModeChange}

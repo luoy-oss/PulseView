@@ -34,7 +34,8 @@ export type FreqMode = 'pulse' | 'rising' | 'falling' | 'low-gap';
 // rising = 相邻两脉冲上升沿间隔
 export type EdgeBase = 'falling' | 'rising';
 
-export type LogicPolarity = 'normal' | 'inverted';
+export type PulseLevel = 'high' | 'low';
+export type DefaultLevel = 0 | 1;
 
 export interface AccelSegment {
   type: 'accel' | 'decel' | 'const';
@@ -102,6 +103,7 @@ export interface AppState {
   fallingEdges: Float64Array | null;
   transTimes: Float64Array | null;
   transLevels: Int8Array | null;
+  sourceTransLevels: Int8Array | null;
   allFreqPts: FreqPoint[];
   freqPts: FreqPoint[];
   cursorA: number | null;
@@ -120,7 +122,8 @@ export interface AppState {
   dutyCorrect: boolean;
   // 占空比/周期计算的基准边沿（默认下降沿，可切换上升沿）
   edgeBase: EdgeBase;
-  logicPolarity: LogicPolarity;
+  pulseLevel: PulseLevel;
+  defaultLevel: DefaultLevel;
   // 低电平间隔测试的可选容差过滤：启用后，50% ± 容差内的占空比误差归零为无间隔
   lowGapToleranceEnabled: boolean;
   lowGapTolerancePct: number;

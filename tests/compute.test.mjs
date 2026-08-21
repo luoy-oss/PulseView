@@ -83,4 +83,66 @@ assert.equal(invertedPoints[0].freq, 0.25);
 assert.equal(normalPoints[1].freq, 1 / 3);
 assert.equal(invertedPoints[1].freq, 0.5);
 
+const terminalLowPulseTimes = new Float64Array([0, 1, 2, 3, 4]);
+const terminalLowPulseLevels = new Int8Array([1, 0, 1, 0, 1]);
+const terminalLowLogical = invertTransitionLevels(terminalLowPulseLevels);
+const terminalLowPoints = computeFreqFromTransitions(
+  terminalLowPulseTimes,
+  terminalLowLogical,
+  'vcd',
+  'falling',
+  false,
+  'falling',
+  false,
+  0,
+  0
+);
+assert.equal(terminalLowPoints.at(-1)?.freq, 0.5);
+assert.equal(terminalLowPoints.at(-1)?.period, 2);
+assert.equal(terminalLowPoints.at(-1)?.dutyCycle, 0.5);
+
+const terminalLowRising = computeFreqFromTransitions(
+  terminalLowPulseTimes,
+  terminalLowLogical,
+  'vcd',
+  'rising',
+  false,
+  'falling',
+  false,
+  0,
+  0
+);
+assert.equal(terminalLowRising.at(-1)?.freq, 0.5);
+assert.equal(terminalLowRising.at(-1)?.dutyCycle, 0.5);
+
+const terminalHighTimes = new Float64Array([0, 1, 2, 3, 4, 5, 6]);
+const terminalHighLevels = new Int8Array([0, 1, 0, 1, 0, 1, 0]);
+const terminalHighRising = computeFreqFromTransitions(
+  terminalHighTimes,
+  terminalHighLevels,
+  'vcd',
+  'rising',
+  false,
+  'falling',
+  false,
+  0,
+  0
+);
+assert.equal(terminalHighRising.filter((point) => point.time === 5).length, 1);
+assert.equal(terminalHighRising.at(-1)?.freq, 0.5);
+
+const terminalPulseMode = computeFreqFromTransitions(
+  terminalHighTimes,
+  terminalHighLevels,
+  'vcd',
+  'pulse',
+  true,
+  'falling',
+  false,
+  0,
+  0
+);
+assert.equal(terminalPulseMode.at(-1)?.period, 2);
+assert.equal(terminalPulseMode.at(-1)?.dutyCycle, 0.5);
+
 console.log('low-gap compute tests passed');

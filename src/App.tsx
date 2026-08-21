@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef } from 'react';
 import { UploadScreen } from './components/UploadScreen';
 import { AppShell } from './components/AppShell';
-import { AbChannel, AccelSegment, AppState, EdgeBase, FreqMode, FreqPoint, LogicPolarity } from './types';
+import { AbChannel, AccelSegment, AppState, DefaultLevel, EdgeBase, FreqMode, FreqPoint, PulseLevel } from './types';
 import {
   computeFreqFromTransitions,
   deriveEdgesFromTransitions,
@@ -25,6 +25,7 @@ const initialState: AppState = {
   fallingEdges: null,
   transTimes: null,
   transLevels: null,
+  sourceTransLevels: null,
   allFreqPts: [],
   freqPts: [],
   cursorA: null,
@@ -40,7 +41,8 @@ const initialState: AppState = {
   freqMode: 'falling',
   dutyCorrect: false,
   edgeBase: 'falling',
-  logicPolarity: 'normal',
+  pulseLevel: 'high',
+  defaultLevel: 0,
   lowGapToleranceEnabled: false,
   lowGapTolerancePct: 0.01,
   lowGapAnnotationEnabled: true,
@@ -140,7 +142,8 @@ export function App() {
           }
 
           setState((prev) => {
-            const logicalLevels = prev.logicPolarity === 'inverted'
+            const defaultLevel = transLevels[0] as DefaultLevel;
+            const logicalLevels = prev.pulseLevel === 'low'
               ? invertTransitionLevels(transLevels)
               : transLevels;
             const logicalEdges = deriveEdgesFromTransitions(transTimes, logicalLevels);
@@ -160,7 +163,8 @@ export function App() {
               prev.dutyCorrect,
               prev.edgeBase,
               prev.lowGapToleranceEnabled,
-              prev.lowGapTolerancePct
+              prev.lowGapTolerancePct,
+              prev.pulseLevel === 'low' ? (defaultLevel === 1 ? 0 : 1) : defaultLevel
             );
             return {
               ...initialState,
@@ -178,11 +182,13 @@ export function App() {
               fallingEdges: logicalEdges.fallingEdges,
               transTimes,
               transLevels: logicalLevels,
+              sourceTransLevels: transLevels,
               allFreqPts: allPts,
               freqPts: allPts,
               fileName: file.name,
               format: fmt,
-              logicPolarity: prev.logicPolarity,
+              pulseLevel: prev.pulseLevel,
+              defaultLevel,
             };
           });
           setParsing(false);
@@ -198,12 +204,14 @@ export function App() {
     });
   }, []);
 
-  const updateLogicPolarity = useCallback((polarity: LogicPolarity) => {
+  const updateWaveformInterpretation = useCallback((pulseLevel: PulseLevel, defaultLevel: DefaultLevel) => {
     setState((prev) => {
-      if (polarity === prev.logicPolarity || !prev.transTimes || !prev.transLevels) {
-        return { ...prev, logicPolarity: polarity };
+      if (!prev.transTimes || !prev.sourceTransLevels) {
+        return { ...prev, pulseLevel, defaultLevel };
       }
-      const transLevels = invertTransitionLevels(prev.transLevels);
+      const transLevels = pulseLevel === 'low'
+        ? invertTransitionLevels(prev.sourceTransLevels)
+        : prev.sourceTransLevels;
       const edges = deriveEdgesFromTransitions(prev.transTimes, transLevels);
       const allPts = computeFreqFromTransitions(
         prev.transTimes,
@@ -213,7 +221,8 @@ export function App() {
         prev.dutyCorrect,
         prev.edgeBase,
         prev.lowGapToleranceEnabled,
-        prev.lowGapTolerancePct
+        prev.lowGapTolerancePct,
+        pulseLevel === 'low' ? (defaultLevel === 1 ? 0 : 1) : defaultLevel
       );
       let pulseCount = 0;
       for (let i = 1; i < transLevels.length; i++) {
@@ -221,7 +230,8 @@ export function App() {
       }
       return {
         ...prev,
-        logicPolarity: polarity,
+        pulseLevel,
+        defaultLevel,
         transLevels,
         risingEdges: edges.risingEdges,
         fallingEdges: edges.fallingEdges,
@@ -253,7 +263,8 @@ export function App() {
         prev.dutyCorrect,
         prev.edgeBase,
         prev.lowGapToleranceEnabled,
-        prev.lowGapTolerancePct
+        prev.lowGapTolerancePct,
+        prev.pulseLevel === 'low' ? (prev.defaultLevel === 1 ? 0 : 1) : prev.defaultLevel
       );
       return {
         ...prev,
@@ -283,7 +294,8 @@ export function App() {
         on,
         prev.edgeBase,
         prev.lowGapToleranceEnabled,
-        prev.lowGapTolerancePct
+        prev.lowGapTolerancePct,
+        prev.pulseLevel === 'low' ? (prev.defaultLevel === 1 ? 0 : 1) : prev.defaultLevel
       );
       return {
         ...prev,
@@ -311,7 +323,8 @@ export function App() {
         prev.dutyCorrect,
         base,
         prev.lowGapToleranceEnabled,
-        prev.lowGapTolerancePct
+        prev.lowGapTolerancePct,
+        prev.pulseLevel === 'low' ? (prev.defaultLevel === 1 ? 0 : 1) : prev.defaultLevel
       );
       return {
         ...prev,
@@ -347,7 +360,8 @@ export function App() {
         prev.dutyCorrect,
         prev.edgeBase,
         enabled,
-        normalizedPct
+        normalizedPct,
+        prev.pulseLevel === 'low' ? (prev.defaultLevel === 1 ? 0 : 1) : prev.defaultLevel
       );
       return {
         ...prev,
@@ -476,7 +490,8 @@ export function App() {
       onFreqModeChange={updateFreqMode}
       onDutyCorrectChange={updateDutyCorrect}
       onEdgeBaseChange={updateEdgeBase}
-      onLogicPolarityChange={updateLogicPolarity}
+      onPulseLevelChange={(pulseLevel) => updateWaveformInterpretation(pulseLevel, state.defaultLevel)}
+      onDefaultLevelChange={(defaultLevel) => updateWaveformInterpretation(state.pulseLevel, defaultLevel)}
       onLowGapToleranceChange={updateLowGapTolerance}
       onLowGapAnnotationChange={updateLowGapAnnotation}
       onAccelDetect={updateAccelSegs}
