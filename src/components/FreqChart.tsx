@@ -24,7 +24,7 @@ const DATASET_STYLE = {
   pointHoverRadius: 4,
   pointHoverBorderWidth: 1.5,
   showLine: true,
-  tension: 0.2,
+  tension: 0,
   fill: true,
 } as const;
 

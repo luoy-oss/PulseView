@@ -124,6 +124,29 @@ function queryExtrema<T>(index: ExtremumIndex<T>, start: number, end: number): [
   return [minIndex, maxIndex];
 }
 
+// A dense constant section is already a horizontal screen shape. Keep its
+// endpoints, but do not hand Chart.js one vertex for every source bucket.
+function collapseHorizontalRuns(points: XYPoint[]): XYPoint[] {
+  if (points.length < 3) return points;
+
+  const out: XYPoint[] = [points[0]];
+  let runY = points[0].y;
+  let runEnd = points[0];
+  for (let i = 1; i < points.length; i++) {
+    const point = points[i];
+    if (point.y === runY) {
+      runEnd = point;
+      continue;
+    }
+    if (out[out.length - 1] !== runEnd) out.push(runEnd);
+    out.push(point);
+    runY = point.y;
+    runEnd = point;
+  }
+  if (out[out.length - 1] !== runEnd) out.push(runEnd);
+  return out;
+}
+
 function buildVisibleCore<T extends { time: number }>(
   pts: T[],
   seriesKey: string,
@@ -156,7 +179,7 @@ function buildVisibleCore<T extends { time: number }>(
     for (let i = 0; i < count; i++) {
       out[i] = toPoint(pts[lo + i]);
     }
-    return out;
+    return collapseHorizontalRuns(out);
   }
 
   const bucketCount = width;
@@ -183,7 +206,11 @@ function buildVisibleCore<T extends { time: number }>(
     out[outIndex++] = toPoint(second);
   }
   out.length = outIndex;
-  return out;
+  return collapseHorizontalRuns([
+    toPoint(pts[lo]),
+    ...out,
+    toPoint(pts[hi]),
+  ]);
 }
 
 export function buildVisibleData(
