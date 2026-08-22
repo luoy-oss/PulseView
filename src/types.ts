@@ -89,6 +89,25 @@ export interface AbAnalysis {
   phaseLead: 'A 超前 B' | 'B 超前 A' | '无明显超前';
 }
 
+export type EncoderMode = 'ab' | 'direction';
+export type DirectionLevel = 0 | 1;
+export type DirectionMappingPreset = 'idle-high-forward-low' | 'idle-low-forward-low' | 'idle-low-forward-high' | 'idle-high-forward-high' | 'custom';
+
+export interface DirectionMapping {
+  preset: DirectionMappingPreset;
+  idleLevel: DirectionLevel;
+  forwardLevel: DirectionLevel;
+}
+
+export interface DirectionAnalysis {
+  freqPoints: AbFreqPoint[];
+  pulseEdges: number;
+  forwardCycles: number;
+  reverseCycles: number;
+  unknownCycles: number;
+  meanPeriod: number;
+}
+
 export interface AbFreqPoint {
   time: number;
   freq: number;

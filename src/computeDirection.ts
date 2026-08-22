@@ -1,0 +1,88 @@
+import type { AbChannel, AbFreqPoint, DirectionAnalysis, DirectionLevel, DirectionMapping } from './types';
+
+export const DIRECTION_PRESETS: DirectionMapping[] = [
+  { preset: 'idle-high-forward-low', idleLevel: 1, forwardLevel: 0 },
+  { preset: 'idle-low-forward-low', idleLevel: 0, forwardLevel: 0 },
+  { preset: 'idle-low-forward-high', idleLevel: 0, forwardLevel: 1 },
+  { preset: 'idle-high-forward-high', idleLevel: 1, forwardLevel: 1 },
+];
+
+function edges(channel: AbChannel, level: DirectionLevel): number[] {
+  const result: number[] = [];
+  for (let i = 1; i < channel.transitions.length; i++) {
+    if (channel.levels[i] === level && channel.levels[i - 1] !== level) result.push(channel.transitions[i]);
+  }
+  return result;
+}
+
+function latestLevel(channel: AbChannel, time: number): DirectionLevel | null {
+  let level: DirectionLevel | null = channel.transitions.length ? channel.levels[0] as DirectionLevel : null;
+  for (let i = 1; i < channel.transitions.length; i++) {
+    if (channel.transitions[i] > time) break;
+    level = channel.levels[i] as DirectionLevel;
+  }
+  return level;
+}
+
+export function computeDirectionAnalysis(
+  pulse: AbChannel,
+  direction: AbChannel,
+  mapping: DirectionMapping,
+  pulseLevel: DirectionLevel = 1,
+): DirectionAnalysis {
+  const pulseEdges = edges(pulse, pulseLevel);
+  const points: AbFreqPoint[] = [];
+  const periods: number[] = [];
+  let forwardCycles = 0;
+  let reverseCycles = 0;
+  let unknownCycles = 0;
+  for (let i = 1; i < pulseEdges.length; i++) {
+    const period = pulseEdges[i] - pulseEdges[i - 1];
+    if (!(period > 0)) continue;
+    const level = latestLevel(direction, pulseEdges[i - 1]);
+    if (level === null || (level !== 0 && level !== 1)) {
+      unknownCycles++;
+      continue;
+    }
+    const sign = level === mapping.forwardLevel ? 1 : -1;
+    points.push({
+      time: (pulseEdges[i - 1] + pulseEdges[i]) / 2,
+      freq: sign / period,
+      direction: sign > 0 ? 'forward' : 'reverse',
+    });
+    periods.push(period);
+    if (sign > 0) forwardCycles++;
+    else reverseCycles++;
+  }
+  return {
+    freqPoints: points,
+    pulseEdges: pulseEdges.length,
+    forwardCycles,
+    reverseCycles,
+    unknownCycles,
+    meanPeriod: periods.length ? periods.reduce((sum, value) => sum + value, 0) / periods.length : 0,
+  };
+}
+
+export function scorePulseChannel(channel: AbChannel): number {
+  const transitions = channel.transitions.length;
+  const name = `${channel.name} ${channel.id}`.toLowerCase();
+  const hint = /pulse|step|clock|d0/.test(name) ? 10 : 0;
+  return transitions * 2 + Math.min(transitions, 100) + hint;
+}
+
+export function scoreDirectionChannel(channel: AbChannel): number {
+  const transitions = channel.transitions.length;
+  const name = `${channel.name} ${channel.id}`.toLowerCase();
+  const hint = /dir|direction|d2/.test(name) ? 10 : 0;
+  return hint + (transitions ? 1000 / transitions : 0);
+}
+
+export function suggestDirectionChannels(channels: AbChannel[]): { pulse: AbChannel; direction: AbChannel } | null {
+  if (channels.length < 2) return null;
+  const pulse = [...channels].sort((a, b) => scorePulseChannel(b) - scorePulseChannel(a))[0];
+  const direction = [...channels]
+    .filter((channel) => channel.id !== pulse.id)
+    .sort((a, b) => scoreDirectionChannel(b) - scoreDirectionChannel(a))[0];
+  return direction ? { pulse, direction } : null;
+}

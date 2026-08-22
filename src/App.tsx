@@ -60,9 +60,10 @@ export function App() {
   const [abChannels, setAbChannels] = useState<AbChannel[] | null>(null);
   const [abSamplingRate, setAbSamplingRate] = useState(0);
   const [abFileName, setAbFileName] = useState('');
+  const [encoderMode, setEncoderMode] = useState<'ab' | 'direction'>('ab');
   const workerRef = useRef<Worker | null>(null);
 
-  const handleFile = useCallback((file: File, mode: 'normal' | 'ab' = 'normal') => {
+  const handleFile = useCallback((file: File, mode: 'normal' | 'ab' | 'direction' = 'normal') => {
     const format = detectFormat(file);
     setParsing(true);
     setParseProgress('读取文件…');
@@ -95,6 +96,7 @@ export function App() {
           setAbChannels(d.channels as AbChannel[]);
           setAbSamplingRate(d.samplingRate);
           setAbFileName(file.name);
+          setEncoderMode(mode === 'direction' ? 'direction' : 'ab');
           setParsing(false);
           return;
         } else if (d.type === 'done') {
@@ -472,7 +474,7 @@ export function App() {
   }, []);
 
   if (abChannels && !parsing) {
-    return <AbAnalysisView channels={abChannels} fileName={abFileName} samplingRate={abSamplingRate} onFile={handleFile} />;
+    return <AbAnalysisView channels={abChannels} fileName={abFileName} samplingRate={abSamplingRate} initialMode={encoderMode} onFile={handleFile} />;
   }
 
   if (!state.samplingRate && !parsing) {

@@ -6,7 +6,7 @@ self.onmessage = function (e: MessageEvent) {
   const text = new TextDecoder('utf-8', { fatal: false }).decode(new Uint8Array(buf));
   const lines = text.split(/\r?\n/);
 
-  if (e.data.mode === 'ab') {
+  if (e.data.mode === 'ab' || e.data.mode === 'direction') {
     const channelDefs: { id: string; name: string }[] = [];
     let timescaleNsAb = 1;
     let headerEnd = 0;

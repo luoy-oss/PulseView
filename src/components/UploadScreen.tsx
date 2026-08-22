@@ -2,13 +2,14 @@ import { useRef, useState, useCallback } from 'react';
 import { version } from '../../package.json';
 
 interface Props {
-  onFile: (file: File, mode?: 'normal' | 'ab') => void;
+  onFile: (file: File, mode?: 'normal' | 'ab' | 'direction') => void;
   progress?: string;
 }
 
 export function UploadScreen({ onFile, progress }: Props) {
   const normalInputRef = useRef<HTMLInputElement>(null);
   const abInputRef = useRef<HTMLInputElement>(null);
+  const directionInputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
 
   const handleDrop = useCallback(
@@ -50,6 +51,9 @@ export function UploadScreen({ onFile, progress }: Props) {
           <button className="upload-btn upload-btn-alt" onClick={(e) => { e.stopPropagation(); abInputRef.current?.click(); }}>
             分析 AB 相数据文件
           </button>
+          <button className="upload-btn upload-btn-alt" onClick={(e) => { e.stopPropagation(); directionInputRef.current?.click(); }}>
+            分析脉冲 + 方向 VCD
+          </button>
         </div>
           <input
             ref={normalInputRef}
@@ -64,6 +68,13 @@ export function UploadScreen({ onFile, progress }: Props) {
             accept=".vcd"
             hidden
             onChange={(e) => { const f = e.target.files?.[0]; if (f) onFile(f, 'ab'); e.currentTarget.value = ''; }}
+          />
+          <input
+            ref={directionInputRef}
+            type="file"
+            accept=".vcd"
+            hidden
+            onChange={(e) => { const f = e.target.files?.[0]; if (f) onFile(f, 'direction'); e.currentTarget.value = ''; }}
           />
         {progress && (
           <div className="upload-progress">
