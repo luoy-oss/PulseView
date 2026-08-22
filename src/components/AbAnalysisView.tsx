@@ -7,6 +7,8 @@ import { ViewRange } from '../decimate';
 import { FreqChart } from './FreqChart';
 import { AnalysisPanel } from './AnalysisPanel';
 import { StatusBar } from './StatusBar';
+import { ThemeId } from '../theme';
+import { ThemeSwitcher } from './ThemeSwitcher';
 
 interface Props {
   channels: AbChannel[];
@@ -14,9 +16,11 @@ interface Props {
   samplingRate: number;
   initialMode?: EncoderMode;
   onFile: (file: File, mode?: 'normal' | 'ab' | 'direction') => void;
+  theme: ThemeId;
+  onThemeChange: (theme: ThemeId) => void;
 }
 
-export function AbAnalysisView({ channels, fileName, samplingRate, initialMode = 'ab', onFile }: Props) {
+export function AbAnalysisView({ channels, fileName, samplingRate, initialMode = 'ab', onFile, theme, onThemeChange }: Props) {
   const suggestion = useMemo(() => suggestDirectionChannels(channels), [channels]);
   const [mode, setMode] = useState<EncoderMode>(initialMode);
   const [aId, setAId] = useState(channels[0]?.id || '');
@@ -99,6 +103,7 @@ export function AbAnalysisView({ channels, fileName, samplingRate, initialMode =
           <span className="fname">{fileName}</span>
         </div>
         <div className="header-r">
+          <ThemeSwitcher theme={theme} onChange={onThemeChange} compact />
           <div className="freq-mode-group ab-channel-group">
             <label className="ctrl-label" htmlFor="encoder-mode">解码</label>
             <select id="encoder-mode" value={mode} onChange={(e) => { setMode(e.target.value as EncoderMode); resetAnalysis(); }}>
@@ -178,6 +183,7 @@ export function AbAnalysisView({ channels, fileName, samplingRate, initialMode =
           <div className="chart-area ab-chart-area">
             <FreqChart
               freqPts={freqPts}
+              theme={theme}
               allFreqPts={freqPts}
             freqMode="falling"
               cursorA={cursorA}

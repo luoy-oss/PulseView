@@ -1,12 +1,16 @@
 import { useRef, useState, useCallback } from 'react';
 import { version } from '../../package.json';
+import { ThemeSwitcher } from './ThemeSwitcher';
+import { ThemeId } from '../theme';
 
 interface Props {
   onFile: (file: File, mode?: 'normal' | 'ab' | 'direction') => void;
   progress?: string;
+  theme: ThemeId;
+  onThemeChange: (theme: ThemeId) => void;
 }
 
-export function UploadScreen({ onFile, progress }: Props) {
+export function UploadScreen({ onFile, progress, theme, onThemeChange }: Props) {
   const normalInputRef = useRef<HTMLInputElement>(null);
   const abInputRef = useRef<HTMLInputElement>(null);
   const directionInputRef = useRef<HTMLInputElement>(null);
@@ -24,6 +28,7 @@ export function UploadScreen({ onFile, progress }: Props) {
 
   return (
     <div className="upload-overlay">
+      <ThemeSwitcher theme={theme} onChange={onThemeChange} />
       <div
         className={`upload-card ${dragOver ? 'drag-over' : ''}`}
         onDragEnter={(e) => {

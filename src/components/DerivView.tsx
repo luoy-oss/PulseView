@@ -5,6 +5,7 @@ import { DerivSeriesChart } from './DerivSeriesChart';
 import { computeDerivatives } from '../compute';
 import { fmtRate, fmtJerk } from '../utils';
 import { ViewRange } from '../decimate';
+import { ThemeId, THEME_COLORS } from '../theme';
 
 export type DerivChartKey = 'freq' | 'accel' | 'jerk';
 
@@ -35,6 +36,7 @@ interface Props {
   ) => void;
   onClearRange: () => void;
   resetZoomRef?: React.MutableRefObject<() => void>;
+  theme: ThemeId;
 }
 
 // 导数视图：垂直堆叠显示频率 / 加速度 / 加加速度三个图，
@@ -61,7 +63,9 @@ export function DerivView({
   onRangeChange,
   onClearRange,
   resetZoomRef,
+  theme,
 }: Props) {
+  const colors = THEME_COLORS[theme];
   // 由频率-时间曲线派生的加速度 / 加加速度曲线（点数与频率点一一对应）
   const { accel, jerk } = useMemo(
     () => computeDerivatives(allFreqPts),
@@ -140,6 +144,7 @@ export function DerivView({
             onClearRange={onClearRange}
             onResetZoomReady={registerFreqReset}
             showToolbar={false}
+            theme={theme}
           />
         </div>
       )}
@@ -161,7 +166,7 @@ export function DerivView({
           </div>
           <DerivSeriesChart
             pts={accel}
-            color="#7ec699"
+            color={colors.green}
             yTitle="加速度"
             viewRange={viewRange}
             onViewRangeChange={onViewRangeChange}
@@ -170,6 +175,7 @@ export function DerivView({
             cursorB={cursorB}
             onCursorChange={onCursorChange}
             formatValue={fmtRate}
+            theme={theme}
           />
         </div>
       )}
@@ -191,7 +197,7 @@ export function DerivView({
           </div>
           <DerivSeriesChart
             pts={jerk}
-            color="#4ecdc4"
+            color={colors.teal}
             yTitle="加加速度"
             viewRange={viewRange}
             onViewRangeChange={onViewRangeChange}
@@ -200,6 +206,7 @@ export function DerivView({
             cursorB={cursorB}
             onCursorChange={onCursorChange}
             formatValue={fmtJerk}
+            theme={theme}
           />
         </div>
       )}

@@ -12,6 +12,7 @@ import annotationPlugin from 'chartjs-plugin-annotation';
 import { DerivPoint } from '../types';
 import { fmtTime, fmtTimeShort, fmtRateShort } from '../utils';
 import { buildVisibleSeries, ViewRange } from '../decimate';
+import { ThemeId, THEME_COLORS } from '../theme';
 
 Chart.register(zoomPlugin, annotationPlugin);
 
@@ -26,6 +27,7 @@ interface Props {
   cursorB: number | null;
   onCursorChange: (which: 'A' | 'B', idx: number | null) => void;
   formatValue: (v: number) => string;
+  theme: ThemeId;
 }
 
 // 导数图（加速度 / 加加速度）：与频率图共享时间轴缩放/平移与光标，
@@ -41,7 +43,9 @@ export function DerivSeriesChart({
   cursorB,
   onCursorChange,
   formatValue,
+  theme,
 }: Props) {
+  const colors = THEME_COLORS[theme];
   const chartRef = useRef<Chart<'scatter', ScatterDataPoint[]> | null>(null);
   const [chartWidth, setChartWidth] = useState(1200);
 
@@ -124,15 +128,15 @@ export function DerivSeriesChart({
         type: 'line',
         xMin: pts[cursorA].time,
         xMax: pts[cursorA].time,
-        borderColor: '#4ecdc4',
+        borderColor: colors.teal,
         borderWidth: 1.5,
         borderDash: [6, 4],
         label: {
           display: true,
           content: 'A',
           position: 'start',
-          backgroundColor: '#4ecdc4',
-          color: '#0c0b0f',
+          backgroundColor: colors.teal,
+          color: colors.bg,
           font: { family: 'DM Sans', size: 10, weight: 700 },
           padding: { x: 5, y: 2 },
           borderRadius: 3,
@@ -145,15 +149,15 @@ export function DerivSeriesChart({
         type: 'line',
         xMin: pts[cursorB].time,
         xMax: pts[cursorB].time,
-        borderColor: '#7ec699',
+        borderColor: colors.green,
         borderWidth: 1.5,
         borderDash: [6, 4],
         label: {
           display: true,
           content: 'B',
           position: 'start',
-          backgroundColor: '#7ec699',
-          color: '#0c0b0f',
+          backgroundColor: colors.green,
+          color: colors.bg,
           font: { family: 'DM Sans', size: 10, weight: 700 },
           padding: { x: 5, y: 2 },
           borderRadius: 3,
@@ -162,7 +166,7 @@ export function DerivSeriesChart({
     }
 
     return annos;
-  }, [cursorA, cursorB, pts]);
+  }, [cursorA, cursorB, pts, colors]);
 
   const handleChartClick = useCallback(
     (evt: { native?: Event }) => {
@@ -209,44 +213,44 @@ export function DerivSeriesChart({
           title: {
             display: true,
             text: '时间',
-            color: '#5c5668',
+            color: colors.text3,
             font: { family: 'DM Sans', size: 11, weight: 600 },
             padding: { top: 6 },
           },
           ticks: {
-            color: '#5c5668',
+            color: colors.text3,
             font: { family: 'Source Code Pro', size: 10 },
             callback: (v) => fmtTimeShort(v as number),
             maxTicksLimit: 12,
           },
-          grid: { color: 'rgba(42,39,53,0.6)', lineWidth: 0.8 },
-          border: { color: 'rgba(42,39,53,0.8)' },
+          grid: { color: `${colors.border}99`, lineWidth: 0.8 },
+          border: { color: `${colors.border}cc` },
         },
         y: {
           title: {
             display: true,
             text: yTitle,
-            color: '#5c5668',
+            color: colors.text3,
             font: { family: 'DM Sans', size: 11, weight: 600 },
             padding: { bottom: 6 },
           },
           ticks: {
-            color: '#5c5668',
+            color: colors.text3,
             font: { family: 'Source Code Pro', size: 10 },
             callback: (v) => fmtRateShort(v as number),
             maxTicksLimit: 7,
           },
-          grid: { color: 'rgba(42,39,53,0.6)', lineWidth: 0.8 },
-          border: { color: 'rgba(42,39,53,0.8)' },
+          grid: { color: `${colors.border}99`, lineWidth: 0.8 },
+          border: { color: `${colors.border}cc` },
         },
       },
       plugins: {
         legend: { display: false },
         tooltip: {
-          backgroundColor: 'rgba(23,21,28,0.96)',
-          titleColor: '#e8e4f0',
-          bodyColor: '#9a93a8',
-          borderColor: 'rgba(212,162,78,.15)',
+          backgroundColor: colors.tooltip,
+          titleColor: colors.text,
+          bodyColor: colors.text2,
+          borderColor: `${colors.accent}26`,
           borderWidth: 1,
           padding: 12,
           displayColors: false,
@@ -273,7 +277,7 @@ export function DerivSeriesChart({
       },
       onClick: handleChartClick as (evt: unknown) => void,
     }),
-    [viewRange, handleChartClick, buildAnnotations, formatValue, yTitle]
+    [viewRange, handleChartClick, buildAnnotations, formatValue, yTitle, colors]
   );
 
   // Update annotations when deps change

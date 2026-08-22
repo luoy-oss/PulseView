@@ -12,17 +12,14 @@ import annotationPlugin from 'chartjs-plugin-annotation';
 import { FreqPoint, AccelSegment, FreqMode, LowGapMarker } from '../types';
 import { fmtTime, fmtTimeShort, fmtFreq, fmtFreqShort } from '../utils';
 import { buildVisibleData, ViewRange } from '../decimate';
+import { ThemeId, THEME_COLORS } from '../theme';
 
 Chart.register(zoomPlugin, annotationPlugin);
 
 const DATASET_STYLE = {
-  borderColor: 'rgba(212,162,78,0.85)',
-  backgroundColor: 'rgba(212,162,78,0.06)',
   borderWidth: 1.5,
   pointRadius: 0,
   pointHoverRadius: 4,
-  pointHoverBackgroundColor: '#d4a24e',
-  pointHoverBorderColor: '#fff',
   pointHoverBorderWidth: 1.5,
   showLine: true,
   tension: 0.2,
@@ -54,6 +51,7 @@ interface Props {
   resetZoomRef?: React.MutableRefObject<() => void>;
   onResetZoomReady?: (fn: () => void) => void;
   showToolbar?: boolean;
+  theme: ThemeId;
 }
 
 export function FreqChart({
@@ -76,7 +74,9 @@ export function FreqChart({
   resetZoomRef,
   onResetZoomReady,
   showToolbar = true,
+  theme,
 }: Props) {
+  const colors = THEME_COLORS[theme];
   const chartRef = useRef<Chart<'scatter', ScatterDataPoint[]> | null>(null);
   const dragRef = useRef({ dragging: false, startX: 0 });
 
@@ -150,9 +150,9 @@ export function FreqChart({
 
   const data: ChartData<'scatter', ScatterDataPoint[]> = useMemo(
     () => ({
-      datasets: [{ ...DATASET_STYLE, data: visibleData }],
+      datasets: [{ ...DATASET_STYLE, borderColor: `${colors.accent}d9`, backgroundColor: `${colors.accent}0f`, pointHoverBackgroundColor: colors.accent, pointHoverBorderColor: colors.text, data: visibleData }],
     }),
-    [visibleData]
+    [visibleData, colors]
   );
 
   const buildAnnotations = useCallback(() => {
@@ -163,15 +163,15 @@ export function FreqChart({
         type: 'line',
         xMin: freqPts[cursorA].time,
         xMax: freqPts[cursorA].time,
-        borderColor: '#4ecdc4',
+        borderColor: colors.teal,
         borderWidth: 1.5,
         borderDash: [6, 4],
         label: {
           display: true,
           content: 'A',
           position: 'start',
-          backgroundColor: '#4ecdc4',
-          color: '#0c0b0f',
+          backgroundColor: colors.teal,
+          color: colors.bg,
           font: { family: 'DM Sans', size: 10, weight: 700 },
           padding: { x: 5, y: 2 },
           borderRadius: 3,
@@ -184,15 +184,15 @@ export function FreqChart({
         type: 'line',
         xMin: freqPts[cursorB].time,
         xMax: freqPts[cursorB].time,
-        borderColor: '#7ec699',
+        borderColor: colors.green,
         borderWidth: 1.5,
         borderDash: [6, 4],
         label: {
           display: true,
           content: 'B',
           position: 'start',
-          backgroundColor: '#7ec699',
-          color: '#0c0b0f',
+          backgroundColor: colors.green,
+          color: colors.bg,
           font: { family: 'DM Sans', size: 10, weight: 700 },
           padding: { x: 5, y: 2 },
           borderRadius: 3,
@@ -205,8 +205,8 @@ export function FreqChart({
         type: 'box',
         xMin: Math.min(rangeStart, rangeEnd),
         xMax: Math.max(rangeStart, rangeEnd),
-        backgroundColor: 'rgba(212,162,78,.05)',
-        borderColor: 'rgba(212,162,78,.2)',
+        backgroundColor: `${colors.accent}14`,
+        borderColor: `${colors.accent}33`,
         borderWidth: 1,
       };
     }
@@ -237,15 +237,15 @@ export function FreqChart({
         type: 'box',
         xMin: marker.startTime,
         xMax: marker.endTime,
-        backgroundColor: 'rgba(224,108,117,.18)',
-        borderColor: 'rgba(224,108,117,.8)',
+          backgroundColor: `${colors.rose}2e`,
+          borderColor: `${colors.rose}cc`,
         borderWidth: 1.5,
         label: {
           display: true,
           content: '低电平 ' + fmtTime(marker.gap),
           position: 'center',
-          color: '#ffd9dc',
-          backgroundColor: 'rgba(128,35,44,.9)',
+          color: colors.text,
+          backgroundColor: `${colors.rose}e6`,
           font: { family: 'Source Code Pro', size: 10, weight: 600 },
           padding: { x: 5, y: 3 },
           borderRadius: 3,
@@ -254,7 +254,7 @@ export function FreqChart({
     });
 
     return annos;
-  }, [cursorA, cursorB, rangeStart, rangeEnd, accelSegs, lowGapMarkers, freqPts]);
+  }, [cursorA, cursorB, rangeStart, rangeEnd, accelSegs, lowGapMarkers, freqPts, colors]);
 
   const handleChartClick = useCallback(
     (evt: { native?: Event }) => {
@@ -302,29 +302,29 @@ export function FreqChart({
           title: {
             display: true,
             text: '时间',
-            color: '#5c5668',
+            color: colors.text3,
             font: { family: 'DM Sans', size: 11, weight: 600 },
             padding: { top: 8 },
           },
           ticks: {
-            color: '#5c5668',
+            color: colors.text3,
             font: { family: 'Source Code Pro', size: 10 },
             callback: (v) => fmtTimeShort(v as number),
             maxTicksLimit: 12,
           },
-          grid: { color: 'rgba(42,39,53,0.6)', lineWidth: 0.8 },
-          border: { color: 'rgba(42,39,53,0.8)' },
+          grid: { color: `${colors.border}99`, lineWidth: 0.8 },
+          border: { color: `${colors.border}cc` },
         },
         y: {
           title: {
             display: true,
             text: freqMode === 'low-gap' ? '低电平间隔' : '频率',
-            color: '#5c5668',
+            color: colors.text3,
             font: { family: 'DM Sans', size: 11, weight: 600 },
             padding: { bottom: 8 },
           },
           ticks: {
-            color: '#5c5668',
+            color: colors.text3,
             font: { family: 'Source Code Pro', size: 10 },
             callback: (v) =>
               freqMode === 'low-gap'
@@ -332,17 +332,17 @@ export function FreqChart({
                 : fmtFreqShort(v as number),
             maxTicksLimit: 8,
           },
-          grid: { color: 'rgba(42,39,53,0.6)', lineWidth: 0.8 },
-          border: { color: 'rgba(42,39,53,0.8)' },
+          grid: { color: `${colors.border}99`, lineWidth: 0.8 },
+          border: { color: `${colors.border}cc` },
         },
       },
       plugins: {
         legend: { display: false },
         tooltip: {
-          backgroundColor: 'rgba(23,21,28,0.96)',
-          titleColor: '#e8e4f0',
-          bodyColor: '#9a93a8',
-          borderColor: 'rgba(212,162,78,.15)',
+          backgroundColor: colors.tooltip,
+          titleColor: colors.text,
+          bodyColor: colors.text2,
+          borderColor: `${colors.accent}26`,
           borderWidth: 1,
           padding: 12,
           displayColors: false,
@@ -393,7 +393,7 @@ export function FreqChart({
       },
       onClick: handleChartClick as (evt: unknown) => void,
     }),
-    [viewRange, rangeMode, handleChartClick, buildAnnotations, freqMode]
+    [viewRange, rangeMode, handleChartClick, buildAnnotations, freqMode, colors]
   );
 
   // Range drag handlers

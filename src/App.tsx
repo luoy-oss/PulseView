@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { UploadScreen } from './components/UploadScreen';
 import { AppShell } from './components/AppShell';
 import { AbChannel, AccelSegment, AppState, DefaultLevel, EdgeBase, FreqMode, FreqPoint, PulseLevel } from './types';
@@ -16,6 +16,7 @@ import TxtWorker from './workers/txtParser.ts?worker';
 import SrWorker from './workers/srParser.ts?worker';
 import SaleaeWorker from './workers/saleaeParser.ts?worker';
 import { AbAnalysisView } from './components/AbAnalysisView';
+import { getInitialTheme, ThemeId } from './theme';
 
 const initialState: AppState = {
   samplingRate: 0,
@@ -61,7 +62,13 @@ export function App() {
   const [abSamplingRate, setAbSamplingRate] = useState(0);
   const [abFileName, setAbFileName] = useState('');
   const [encoderMode, setEncoderMode] = useState<'ab' | 'direction'>('ab');
+  const [theme, setTheme] = useState<ThemeId>(getInitialTheme);
   const workerRef = useRef<Worker | null>(null);
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    window.localStorage.setItem('pulseview-theme', theme);
+  }, [theme]);
 
   const handleFile = useCallback((file: File, mode: 'normal' | 'ab' | 'direction' = 'normal') => {
     const format = detectFormat(file);
@@ -474,20 +481,22 @@ export function App() {
   }, []);
 
   if (abChannels && !parsing) {
-    return <AbAnalysisView channels={abChannels} fileName={abFileName} samplingRate={abSamplingRate} initialMode={encoderMode} onFile={handleFile} />;
+    return <AbAnalysisView channels={abChannels} fileName={abFileName} samplingRate={abSamplingRate} initialMode={encoderMode} onFile={handleFile} theme={theme} onThemeChange={setTheme} />;
   }
 
   if (!state.samplingRate && !parsing) {
-    return <UploadScreen onFile={handleFile} />;
+    return <UploadScreen onFile={handleFile} theme={theme} onThemeChange={setTheme} />;
   }
 
   if (parsing) {
-    return <UploadScreen onFile={handleFile} progress={parseProgress} />;
+    return <UploadScreen onFile={handleFile} progress={parseProgress} theme={theme} onThemeChange={setTheme} />;
   }
 
   return (
     <AppShell
       state={state}
+      theme={theme}
+      onThemeChange={setTheme}
       onFile={handleFile}
       onFreqModeChange={updateFreqMode}
       onDutyCorrectChange={updateDutyCorrect}

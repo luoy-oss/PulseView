@@ -1,5 +1,7 @@
 import { useRef, useCallback } from 'react';
 import { DefaultLevel, EdgeBase, FreqPoint, FreqMode, PulseLevel } from '../types';
+import { ThemeSwitcher } from './ThemeSwitcher';
+import { ThemeId } from '../theme';
 
 interface Props {
   fileName: string;
@@ -28,6 +30,8 @@ interface Props {
   onResetZoom: () => void;
   showDerivs: boolean;
   onToggleDerivView: () => void;
+  theme: ThemeId;
+  onThemeChange: (theme: ThemeId) => void;
 }
 
 export function Header({
@@ -57,6 +61,8 @@ export function Header({
   onResetZoom,
   showDerivs,
   onToggleDerivView,
+  theme,
+  onThemeChange,
 }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -90,6 +96,7 @@ export function Header({
         <span className="fname">{fileName}</span>
       </div>
       <div className="header-r">
+        <ThemeSwitcher theme={theme} onChange={onThemeChange} compact />
         <div className="freq-mode-group">
           <button
             className={`btn btn-sm ${freqMode === 'pulse' ? 'btn-p' : ''}`}

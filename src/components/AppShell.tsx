@@ -9,6 +9,7 @@ import { StatusBar } from './StatusBar';
 import { fmtFreq, fmtTime } from '../utils';
 import { computeLowGapMarkers } from '../compute';
 import { ViewRange } from '../decimate';
+import { ThemeId } from '../theme';
 
 interface Props {
   state: AppState;
@@ -32,6 +33,8 @@ interface Props {
   onClearRange: () => void;
   onToggleDerivView: () => void;
   onToggleChart: (key: DerivChartKey) => void;
+  theme: ThemeId;
+  onThemeChange: (theme: ThemeId) => void;
 }
 
 export function AppShell({
@@ -51,6 +54,8 @@ export function AppShell({
   onClearRange,
   onToggleDerivView,
   onToggleChart,
+  theme,
+  onThemeChange,
 }: Props) {
   const resetZoomRef = useRef<() => void>(() => {});
   // 共享时间轴缩放/平移范围：导数视图下三个图同步
@@ -118,6 +123,8 @@ export function AppShell({
         onResetZoom={() => resetZoomRef.current()}
         showDerivs={state.showDerivs}
         onToggleDerivView={onToggleDerivView}
+        theme={theme}
+        onThemeChange={onThemeChange}
       />
       <div className="main-layout">
         <Sidebar
@@ -153,6 +160,7 @@ export function AppShell({
               onRangeChange={onRangeChange}
               onClearRange={onClearRange}
               resetZoomRef={resetZoomRef}
+              theme={theme}
             />
           ) : (
             <FreqChart
@@ -173,6 +181,7 @@ export function AppShell({
               onRangeChange={onRangeChange}
               onClearRange={onClearRange}
               resetZoomRef={resetZoomRef}
+              theme={theme}
             />
           )}
           <AnalysisPanel
