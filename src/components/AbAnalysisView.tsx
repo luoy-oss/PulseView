@@ -209,6 +209,7 @@ export function AbAnalysisView({ channels, fileName, samplingRate, initialMode =
             risingEdges={aRisingEdges}
               onAccelDetect={setAccelSegs}
               onCursorChange={handleCursor}
+              theme={theme}
             />
           </div>
         </>

@@ -9,6 +9,7 @@ import {
   fmtRate,
 } from '../utils';
 import { detectAccelSegments, computeHistogramBins, countPulsesBetween } from '../compute';
+import { ThemeId, THEME_COLORS } from '../theme';
 
 interface Props {
   allFreqPts: FreqPoint[];
@@ -19,6 +20,7 @@ interface Props {
   risingEdges: Float64Array | null;
   onAccelDetect: (segs: AccelSegment[]) => void;
   onCursorChange: (which: 'A' | 'B', idx: number | null) => void;
+  theme: ThemeId;
 }
 
 export function AnalysisPanel({
@@ -30,6 +32,7 @@ export function AnalysisPanel({
   risingEdges,
   onAccelDetect,
   onCursorChange,
+  theme,
 }: Props) {
   const [tab, setTab] = useState<'cursor' | 'accel' | 'hist'>('cursor');
 
@@ -72,7 +75,7 @@ export function AnalysisPanel({
             onDetect={onAccelDetect}
           />
         )}
-        {tab === 'hist' && <HistPane allFreqPts={allFreqPts} />}
+        {tab === 'hist' && <HistPane allFreqPts={allFreqPts} theme={theme} />}
       </div>
     </div>
   );
@@ -245,7 +248,7 @@ function AccelPane({
   );
 }
 
-function HistPane({ allFreqPts }: { allFreqPts: FreqPoint[] }) {
+function HistPane({ allFreqPts, theme }: { allFreqPts: FreqPoint[]; theme: ThemeId }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const chartRef = useRef<Chart | null>(null);
 
@@ -255,6 +258,7 @@ function HistPane({ allFreqPts }: { allFreqPts: FreqPoint[] }) {
     const freqs = allFreqPts.map((p) => p.freq);
     const result = computeHistogramBins(freqs);
     if (!result) return;
+    const colors = THEME_COLORS[theme];
 
     if (chartRef.current) {
       chartRef.current.destroy();
@@ -267,8 +271,8 @@ function HistPane({ allFreqPts }: { allFreqPts: FreqPoint[] }) {
         datasets: [
           {
             data: result.bins,
-            backgroundColor: 'rgba(212,162,78,0.25)',
-            borderColor: 'rgba(212,162,78,0.5)',
+            backgroundColor: `${colors.accent}40`,
+            borderColor: `${colors.accent}80`,
             borderWidth: 1,
             borderRadius: 2,
             barPercentage: 1.0,
@@ -283,31 +287,31 @@ function HistPane({ allFreqPts }: { allFreqPts: FreqPoint[] }) {
         scales: {
           x: {
             ticks: {
-              color: '#5c5668',
+              color: colors.text3,
               font: { family: 'Source Code Pro', size: 9 },
               maxRotation: 90,
               autoSkip: true,
               maxTicksLimit: 20,
             },
             grid: { display: false },
-            border: { color: 'rgba(42,39,53,0.8)' },
+            border: { color: `${colors.border}cc` },
           },
           y: {
             ticks: {
-              color: '#5c5668',
+              color: colors.text3,
               font: { family: 'Source Code Pro', size: 10 },
             },
-            grid: { color: 'rgba(42,39,53,0.5)' },
-            border: { color: 'rgba(42,39,53,0.8)' },
+            grid: { color: `${colors.border}80` },
+            border: { color: `${colors.border}cc` },
           },
         },
         plugins: {
           legend: { display: false },
           tooltip: {
-            backgroundColor: 'rgba(23,21,28,0.96)',
-            titleColor: '#e8e4f0',
-            bodyColor: '#9a93a8',
-            borderColor: 'rgba(212,162,78,.15)',
+            backgroundColor: colors.tooltip,
+            titleColor: colors.text,
+            bodyColor: colors.text2,
+            borderColor: `${colors.accent}26`,
             borderWidth: 1,
             cornerRadius: 8,
           },
@@ -319,7 +323,7 @@ function HistPane({ allFreqPts }: { allFreqPts: FreqPoint[] }) {
       chartRef.current?.destroy();
       chartRef.current = null;
     };
-  }, [allFreqPts]);
+  }, [allFreqPts, theme]);
 
   return (
     <div className="hist-wrap">

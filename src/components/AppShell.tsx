@@ -193,6 +193,7 @@ export function AppShell({
               risingEdges={state.risingEdges}
               onAccelDetect={onAccelDetect}
               onCursorChange={onCursorChange}
+              theme={theme}
           />
         </div>
       </div>
