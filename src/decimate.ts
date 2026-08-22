@@ -49,8 +49,84 @@ function toDerivXY(p: DerivPoint): XYPoint {
  * 可见点数超过渲染阈值时，按像素列做 min/max 抽稀，
  * 每个像素列保留该列纵坐标最小值与最大值两个点，包络形状与原图一致。
  */
+interface ExtremumIndex<T> {
+  size: number;
+  min: Int32Array;
+  max: Int32Array;
+  values: T[];
+  getValue: (p: T) => number;
+}
+
+const extremumIndexes = new WeakMap<object, Map<string, ExtremumIndex<unknown>>>();
+
+function getExtremumIndex<T extends { time: number }>(
+  pts: T[],
+  key: string,
+  getValue: (p: T) => number
+): ExtremumIndex<T> {
+  let bySeries = extremumIndexes.get(pts);
+  if (!bySeries) {
+    bySeries = new Map();
+    extremumIndexes.set(pts, bySeries);
+  }
+
+  const cached = bySeries.get(key) as ExtremumIndex<T> | undefined;
+  if (cached) return cached;
+
+  let size = 1;
+  while (size < pts.length) size <<= 1;
+  const min = new Int32Array(size * 2);
+  const max = new Int32Array(size * 2);
+  for (let i = 0; i < size; i++) {
+    const index = size + i;
+    min[index] = i < pts.length ? i : -1;
+    max[index] = i < pts.length ? i : -1;
+  }
+  for (let node = size - 1; node > 0; node--) {
+    const leftMin = min[node * 2];
+    const rightMin = min[node * 2 + 1];
+    min[node] = rightMin < 0 || (leftMin >= 0 && getValue(pts[leftMin]) <= getValue(pts[rightMin]))
+      ? leftMin
+      : rightMin;
+    const leftMax = max[node * 2];
+    const rightMax = max[node * 2 + 1];
+    max[node] = rightMax < 0 || (leftMax >= 0 && getValue(pts[leftMax]) >= getValue(pts[rightMax]))
+      ? leftMax
+      : rightMax;
+  }
+
+  const index = { size, min, max, values: pts, getValue } as ExtremumIndex<T>;
+  bySeries.set(key, index as ExtremumIndex<unknown>);
+  return index;
+}
+
+function queryExtrema<T>(index: ExtremumIndex<T>, start: number, end: number): [number, number] {
+  let lo = start + index.size;
+  let hi = end + index.size + 1;
+  let minIndex = -1;
+  let maxIndex = -1;
+  while (lo < hi) {
+    if (lo & 1) {
+      const candidate = index.min[lo++];
+      if (candidate >= 0 && (minIndex < 0 || index.getValue(index.values[candidate]) < index.getValue(index.values[minIndex]))) minIndex = candidate;
+      const maxCandidate = index.max[lo - 1];
+      if (maxCandidate >= 0 && (maxIndex < 0 || index.getValue(index.values[maxCandidate]) > index.getValue(index.values[maxIndex]))) maxIndex = maxCandidate;
+    }
+    if (hi & 1) {
+      const candidate = index.min[--hi];
+      if (candidate >= 0 && (minIndex < 0 || index.getValue(index.values[candidate]) < index.getValue(index.values[minIndex]))) minIndex = candidate;
+      const maxCandidate = index.max[hi];
+      if (maxCandidate >= 0 && (maxIndex < 0 || index.getValue(index.values[maxCandidate]) > index.getValue(index.values[maxIndex]))) maxIndex = maxCandidate;
+    }
+    lo >>= 1;
+    hi >>= 1;
+  }
+  return [minIndex, maxIndex];
+}
+
 function buildVisibleCore<T extends { time: number }>(
   pts: T[],
+  seriesKey: string,
   getValue: (p: T) => number,
   toPoint: (p: T) => XYPoint,
   viewRange: ViewRange | null,
@@ -89,32 +165,24 @@ function buildVisibleCore<T extends { time: number }>(
   const span = t1 - t0;
   if (span <= 0) return [toPoint(pts[lo]), toPoint(pts[hi])];
 
-  const out: XYPoint[] = [];
-  let bMin = pts[lo];
-  let bMax = pts[lo];
-  let curBucket = 0;
-  const flush = () => {
-    const first = bMin.time <= bMax.time ? bMin : bMax;
-    const second = bMin.time <= bMax.time ? bMax : bMin;
-    out.push(toPoint(first), toPoint(second));
-  };
-  for (let i = lo; i <= hi; i++) {
-    const p = pts[i];
-    const b = Math.min(
-      bucketCount - 1,
-      Math.floor(((p.time - t0) / span) * bucketCount)
-    );
-    if (b !== curBucket) {
-      flush();
-      curBucket = b;
-      bMin = p;
-      bMax = p;
-    } else {
-      if (getValue(p) < getValue(bMin)) bMin = p;
-      if (getValue(p) > getValue(bMax)) bMax = p;
-    }
+  const index = getExtremumIndex(pts, seriesKey, getValue);
+  const out: XYPoint[] = new Array(bucketCount * 2);
+  let outIndex = 0;
+  for (let bucket = 0; bucket < bucketCount; bucket++) {
+    const bucketStart = t0 + (span * bucket) / bucketCount;
+    const bucketEnd = bucket === bucketCount - 1
+      ? t1
+      : t0 + (span * (bucket + 1)) / bucketCount;
+    const bucketLo = Math.max(lo, lowerBoundTime(pts, bucketStart));
+    const bucketHi = Math.min(hi, upperBoundTime(pts, bucketEnd));
+    if (bucketLo > bucketHi) continue;
+    const [minIndex, maxIndex] = queryExtrema(index, bucketLo, bucketHi);
+    const first = pts[minIndex].time <= pts[maxIndex].time ? pts[minIndex] : pts[maxIndex];
+    const second = first === pts[minIndex] ? pts[maxIndex] : pts[minIndex];
+    out[outIndex++] = toPoint(first);
+    out[outIndex++] = toPoint(second);
   }
-  flush();
+  out.length = outIndex;
   return out;
 }
 
@@ -123,7 +191,7 @@ export function buildVisibleData(
   viewRange: ViewRange | null,
   widthPx: number
 ): XYPoint[] {
-  return buildVisibleCore(pts, (p) => p.freq, toFreqXY, viewRange, widthPx);
+  return buildVisibleCore(pts, 'freq', (p) => p.freq, toFreqXY, viewRange, widthPx);
 }
 
 export function buildVisibleSeries(
@@ -131,5 +199,5 @@ export function buildVisibleSeries(
   viewRange: ViewRange | null,
   widthPx: number
 ): XYPoint[] {
-  return buildVisibleCore(pts, (p) => p.value, toDerivXY, viewRange, widthPx);
+  return buildVisibleCore(pts, 'deriv', (p) => p.value, toDerivXY, viewRange, widthPx);
 }

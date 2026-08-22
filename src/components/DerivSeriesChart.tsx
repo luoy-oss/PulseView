@@ -102,6 +102,8 @@ export function DerivSeriesChart({
     () => ({
       datasets: [
         {
+          parsing: false,
+          normalized: true,
           borderColor: color,
           backgroundColor: hexToRgba(color, 0.06),
           borderWidth: 1.5,

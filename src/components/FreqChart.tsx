@@ -17,6 +17,8 @@ import { ThemeId, THEME_COLORS } from '../theme';
 Chart.register(zoomPlugin, annotationPlugin);
 
 const DATASET_STYLE = {
+  parsing: false,
+  normalized: true,
   borderWidth: 1.5,
   pointRadius: 0,
   pointHoverRadius: 4,
