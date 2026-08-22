@@ -77,9 +77,9 @@ assert.deepEqual([...invertedEdges.fallingEdges], [1, 4, 6]);
 const normalPoints = computeFreqFromTransitions(normalTimes, normalLevels, 'txt', 'falling');
 const invertedPoints = computeFreqFromTransitions(normalTimes, invertedLevels, 'txt', 'falling');
 assert.equal(normalPoints[0].dutyCycle, 0.5);
-assert.equal(invertedPoints[0].dutyCycle, 0.5);
+assert.equal(invertedPoints[0].dutyCycle, 1);
 assert.equal(normalPoints[0].freq, 0.5);
-assert.equal(invertedPoints[0].freq, 0.25);
+assert.equal(invertedPoints[0].freq, 0.5);
 assert.equal(normalPoints[1].freq, 1 / 3);
 assert.equal(invertedPoints[1].freq, 0.5);
 
@@ -144,5 +144,25 @@ const terminalPulseMode = computeFreqFromTransitions(
 );
 assert.equal(terminalPulseMode.at(-1)?.period, 2);
 assert.equal(terminalPulseMode.at(-1)?.dutyCycle, 0.5);
+
+const delayedFirstPulseTimes = new Float64Array([0, 5.4, 10.1, 15.4, 20.1, 25.4]);
+const delayedFirstPulseLevels = new Int8Array([1, 0, 1, 0, 1, 0]);
+const delayedFirstPulse = computeFreqFromTransitions(
+  delayedFirstPulseTimes,
+  delayedFirstPulseLevels,
+  'txt',
+  'falling'
+);
+assert.ok(Math.abs(delayedFirstPulse[0].freq - 1 / 10) < 1e-12);
+assert.ok(Math.abs(delayedFirstPulse[0].period - 10) < 1e-12);
+assert.ok(Math.abs(delayedFirstPulse[0].dutyCycle - 5.3 / 10) < 1e-12);
+
+const delayedFirstRising = computeFreqFromTransitions(
+  delayedFirstPulseTimes,
+  delayedFirstPulseLevels,
+  'txt',
+  'rising'
+);
+assert.ok(Math.abs(delayedFirstRising[0].freq - 1 / 10) < 1e-12);
 
 console.log('low-gap compute tests passed');

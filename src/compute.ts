@@ -173,13 +173,12 @@ export function computeFreqFromTransitions(
   if (freqMode === 'rising') {
     // 上升沿周期模式：相邻上升沿构成一个周期，freq = 1/dt；
     // 横坐标取该周期终点上升沿时刻。
-    // VCD 数据从有效上升沿开始具体时间，首脉冲（第一份数据 R0→F0）之前
-    // 无前序上升沿可参照，R0→R1 周期会混入首脉冲的宽脉冲而失真
-    // （如 4.vcd 中 R0→R1=502µs 使首个频率点低至 1991Hz，偏离真实扫频
-    // 起点 ~3400Hz），必须抛开：首脉冲固定按 50% 占空比口径计算
-    // （freq = 1/(2×脉宽)，period = 2×脉宽），周期从第二个上升沿对开始。
+    // 只有有效脉冲从记录第一跳变开始时，前半周期才不可观测，首点才固定按
+    // 50% 处理。若记录以默认电平开始，首个有效脉冲前已有反向电平段，首点
+    // 可以使用真实的相邻上升沿周期。
     if (rises.length === 0) return pts;
-    if (rises[0] + 1 < transTimes.length) {
+    const firstPulseIsBoundary = rises[0] === 1;
+    if (firstPulseIsBoundary && rises[0] + 1 < transTimes.length) {
       const w0 = transTimes[rises[0] + 1] - transTimes[rises[0]]; // 首脉冲脉宽
       if (w0 > 0) {
         pts.push({
@@ -190,7 +189,22 @@ export function computeFreqFromTransitions(
         });
       }
     }
-    for (let k = 2; k < rises.length; k++) {
+    const firstMeasuredPair = 2;
+    if (!firstPulseIsBoundary && rises.length >= 2) {
+      const i = rises[0];
+      const j = rises[1];
+      const dt = transTimes[j] - transTimes[i];
+      const width = i + 1 < transTimes.length ? transTimes[i + 1] - transTimes[i] : 0;
+      if (dt > 0 && width > 0) {
+        pts.push({
+          time: transTimes[i],
+          freq: 1 / dt,
+          period: dt,
+          dutyCycle: width / dt,
+        });
+      }
+    }
+    for (let k = firstMeasuredPair; k < rises.length; k++) {
       const i = rises[k - 1];
       const j = rises[k];
       const dt = transTimes[j] - transTimes[i];
@@ -229,12 +243,10 @@ export function computeFreqFromTransitions(
     // 时间点取相邻两下降沿的中点（代表该周期发生的时刻，避免上升沿时刻方案
     // 让频率点贴住曲线起点/边沿造成显示异常）；每个周期内含一个高电平脉冲，
     // 实测占空比 = 该脉冲脉宽 / 周期。
-    // 首个脉冲无前序下降沿可参照（起始段不完整），以第一个上升沿为时间起点，
-    // 固定按 50% 占空比口径计算（period = 2 × 脉宽，freq = 1/(2×脉宽)）。
+    // 若有效脉冲从记录第一跳变开始，前半周期不可观测，首点固定按 50%。
+    // 若记录以默认电平开始，首个有效脉冲前已有反向电平段，首点使用真实周期。
     if (rises.length === 0) return pts;
-    // 第一个真实下降沿 = 首个上升沿之后的首个下降沿：信号以高电平开头时
-    // （如 VCD 初始电平为 1），首个下降沿结束的是记录起点之前就已开始的
-    // 不完整脉冲，不能作为周期边界，必须跳过
+    // 第一个真实下降沿 = 首个上升沿之后的首个下降沿。
     let f0 = -1;
     for (let k = 0; k < falls.length; k++) {
       if (falls[k] > rises[0]) {
@@ -244,15 +256,27 @@ export function computeFreqFromTransitions(
     }
     if (f0 < 0) return pts; // 无下降沿，无法构成周期
 
-    // 首个脉冲：以上升沿为时间起点，默认 50% 占空比
+    // 首个脉冲：边界开始时默认 50%；否则用下一个下降沿确定真实周期。
     const w0 = transTimes[falls[f0]] - transTimes[rises[0]];
     if (w0 > 0) {
-      pts.push({
-        time: transTimes[rises[0]],
-        freq: 1 / (2 * w0),
-        period: 2 * w0,
-        dutyCycle: 0.5,
-      });
+      const firstPulseIsBoundary = rises[0] === 1;
+      const nextFall = f0 + 1 < falls.length ? falls[f0 + 1] : -1;
+      if (!firstPulseIsBoundary && nextFall >= 0) {
+        const period = transTimes[nextFall] - transTimes[falls[f0]];
+        pts.push({
+          time: transTimes[rises[0]],
+          freq: period > 0 ? 1 / period : 1 / (2 * w0),
+          period: period > 0 ? period : 2 * w0,
+          dutyCycle: period > 0 ? w0 / period : 0.5,
+        });
+      } else {
+        pts.push({
+          time: transTimes[rises[0]],
+          freq: 1 / (2 * w0),
+          period: 2 * w0,
+          dutyCycle: 0.5,
+        });
+      }
     }
 
     // 后续脉冲：相邻下降沿间隔为周期，时间点取两下降沿中点
