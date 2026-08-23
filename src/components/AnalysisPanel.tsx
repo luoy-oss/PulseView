@@ -309,8 +309,8 @@ function HistPane({ allFreqPts, theme }: { allFreqPts: FreqPoint[]; theme: Theme
           legend: { display: false },
           tooltip: {
             backgroundColor: colors.tooltip,
-            titleColor: colors.text,
-            bodyColor: colors.text2,
+            titleColor: colors.tooltipTitle,
+            bodyColor: colors.tooltipBody,
             borderColor: `${colors.accent}26`,
             borderWidth: 1,
             cornerRadius: 8,
