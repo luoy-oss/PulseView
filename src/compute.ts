@@ -26,6 +26,18 @@ export function invertTransitionLevels(transLevels: Int8Array): Int8Array {
   return inverted;
 }
 
+// Count complete logical high pulse segments. Boundary defaults affect period
+// estimation, but do not change which observed pulses exist in the signal.
+export function countPulsesFromTransitions(transLevels: Int8Array): number {
+  if (!transLevels || transLevels.length < 2) return 0;
+
+  let pulseCount = 0;
+  for (let i = 1; i < transLevels.length; i++) {
+    if (transLevels[i - 1] === 1 && transLevels[i] === 0) pulseCount++;
+  }
+  return pulseCount;
+}
+
 export function computeLowGapMarkers(
   transTimes: Float64Array,
   transLevels: Int8Array,

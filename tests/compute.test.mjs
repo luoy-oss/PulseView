@@ -5,6 +5,7 @@ import {
   LOW_GAP_MIN_THRESHOLD,
   deriveEdgesFromTransitions,
   invertTransitionLevels,
+  countPulsesFromTransitions,
 } from '../src/compute.ts';
 
 const levels = new Int8Array([0, 1, 0, 1, 0, 1, 0, 1, 0]);
@@ -164,5 +165,14 @@ const delayedFirstRising = computeFreqFromTransitions(
   'rising'
 );
 assert.ok(Math.abs(delayedFirstRising[0].freq - 1 / 10) < 1e-12);
+
+const boundaryLevels = new Int8Array([1, 0, 1, 0]);
+assert.equal(countPulsesFromTransitions(boundaryLevels), 2);
+assert.equal(countPulsesFromTransitions(new Int8Array([0, 1, 0, 1, 0])), 2);
+
+const physicalLevels = new Int8Array([0, 1, 0, 1, 0]);
+assert.equal(countPulsesFromTransitions(physicalLevels), 2);
+const invertedPhysicalLevels = invertTransitionLevels(physicalLevels);
+assert.equal(countPulsesFromTransitions(invertedPhysicalLevels), 2);
 
 console.log('low-gap compute tests passed');

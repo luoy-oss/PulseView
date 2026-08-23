@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
-import { AppState, AccelSegment, DefaultLevel, EdgeBase, FreqMode, PulseLevel } from '../types';
+import { AppState, AccelSegment, DefaultLevel, EdgeBase, FreqMode, PulseLevel, SidebarStatVisibility } from '../types';
 import { Header } from './Header';
 import { Sidebar } from './Sidebar';
 import { FreqChart } from './FreqChart';
@@ -35,6 +35,8 @@ interface Props {
   onToggleChart: (key: DerivChartKey) => void;
   theme: ThemeId;
   onThemeChange: (theme: ThemeId) => void;
+  sidebarStats: SidebarStatVisibility;
+  onSidebarStatsChange: (visibility: SidebarStatVisibility) => void;
 }
 
 export function AppShell({
@@ -56,6 +58,8 @@ export function AppShell({
   onToggleChart,
   theme,
   onThemeChange,
+  sidebarStats,
+  onSidebarStatsChange,
 }: Props) {
   const resetZoomRef = useRef<() => void>(() => {});
   // 共享时间轴缩放/平移范围：导数视图下三个图同步
@@ -135,6 +139,8 @@ export function AppShell({
           duration={dur}
           allFreqPts={state.allFreqPts}
           lowGapMode={false}
+          visibility={sidebarStats}
+          onVisibilityChange={onSidebarStatsChange}
         />
         <div className="chart-area">
           {state.showDerivs ? (

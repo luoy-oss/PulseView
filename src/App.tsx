@@ -1,9 +1,10 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { UploadScreen } from './components/UploadScreen';
 import { AppShell } from './components/AppShell';
-import { AbChannel, AccelSegment, AppState, DefaultLevel, EdgeBase, FreqMode, FreqPoint, PulseLevel } from './types';
+import { AbChannel, AccelSegment, AppState, DefaultLevel, EdgeBase, FreqMode, FreqPoint, PulseLevel, SidebarStatVisibility } from './types';
 import {
   computeFreqFromTransitions,
+  countPulsesFromTransitions,
   deriveEdgesFromTransitions,
   invertTransitionLevels,
   computeLowGapMarkers,
@@ -54,8 +55,40 @@ const initialState: AppState = {
   showJerkChart: false,
 };
 
+const defaultSidebarStats: SidebarStatVisibility = {
+  samplingRate: true,
+  risingCount: true,
+  fallingCount: true,
+  pulseCount: true,
+  duration: true,
+  pointCount: true,
+  minimum: true,
+  maximum: true,
+  average: true,
+  standardDeviation: true,
+  coefficientOfVariation: true,
+};
+
+function loadSidebarStats(): SidebarStatVisibility {
+  try {
+    const saved = window.localStorage.getItem('pulseview-sidebar-stats');
+    if (!saved) return defaultSidebarStats;
+    const parsed = JSON.parse(saved) as Partial<SidebarStatVisibility>;
+    return Object.keys(defaultSidebarStats).reduce((result, key) => {
+      const statKey = key as keyof SidebarStatVisibility;
+      result[statKey] = typeof parsed[statKey] === 'boolean'
+        ? parsed[statKey] as boolean
+        : defaultSidebarStats[statKey];
+      return result;
+    }, {} as SidebarStatVisibility);
+  } catch {
+    return defaultSidebarStats;
+  }
+}
+
 export function App() {
   const [state, setState] = useState<AppState>(initialState);
+  const [sidebarStats, setSidebarStats] = useState<SidebarStatVisibility>(loadSidebarStats);
   const [parsing, setParsing] = useState(false);
   const [parseProgress, setParseProgress] = useState('');
   const [abChannels, setAbChannels] = useState<AbChannel[] | null>(null);
@@ -69,6 +102,14 @@ export function App() {
     document.documentElement.dataset.theme = theme;
     window.localStorage.setItem('pulseview-theme', theme);
   }, [theme]);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem('pulseview-sidebar-stats', JSON.stringify(sidebarStats));
+    } catch {
+      // Storage may be disabled or unavailable; keep the preference in memory.
+    }
+  }, [sidebarStats]);
 
   const handleFile = useCallback((file: File, mode: 'normal' | 'ab' | 'direction' = 'normal') => {
     const format = detectFormat(file);
@@ -157,11 +198,10 @@ export function App() {
               : transLevels;
             const logicalEdges = deriveEdgesFromTransitions(transTimes, logicalLevels);
 
-            // 总脉冲数：从第一个 1 开始，每个 "1→0"（一个高电平脉冲）计一个脉冲
-            let pulseCount = 0;
-            for (let i = 1; i < logicalLevels.length; i++) {
-              if (logicalLevels[i - 1] === 1 && logicalLevels[i] === 0) pulseCount++;
-            }
+            const logicalDefaultLevel = prev.pulseLevel === 'low'
+              ? (defaultLevel === 1 ? 0 : 1)
+              : defaultLevel;
+            const pulseCount = countPulsesFromTransitions(logicalLevels);
 
             // 按用户当前选择的频率计算模式、占空比修正与基准边沿生成频率点
             const allPts = computeFreqFromTransitions(
@@ -173,7 +213,7 @@ export function App() {
               prev.edgeBase,
               prev.lowGapToleranceEnabled,
               prev.lowGapTolerancePct,
-              prev.pulseLevel === 'low' ? (defaultLevel === 1 ? 0 : 1) : defaultLevel
+              logicalDefaultLevel
             );
             return {
               ...initialState,
@@ -233,10 +273,7 @@ export function App() {
         prev.lowGapTolerancePct,
         pulseLevel === 'low' ? (defaultLevel === 1 ? 0 : 1) : defaultLevel
       );
-      let pulseCount = 0;
-      for (let i = 1; i < transLevels.length; i++) {
-        if (transLevels[i - 1] === 1 && transLevels[i] === 0) pulseCount++;
-      }
+      const pulseCount = countPulsesFromTransitions(transLevels);
       return {
         ...prev,
         pulseLevel,
@@ -497,6 +534,8 @@ export function App() {
       state={state}
       theme={theme}
       onThemeChange={setTheme}
+      sidebarStats={sidebarStats}
+      onSidebarStatsChange={setSidebarStats}
       onFile={handleFile}
       onFreqModeChange={updateFreqMode}
       onDutyCorrectChange={updateDutyCorrect}

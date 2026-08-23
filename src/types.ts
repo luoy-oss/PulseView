@@ -37,6 +37,20 @@ export type EdgeBase = 'falling' | 'rising';
 export type PulseLevel = 'high' | 'low';
 export type DefaultLevel = 0 | 1;
 
+export interface SidebarStatVisibility {
+  samplingRate: boolean;
+  risingCount: boolean;
+  fallingCount: boolean;
+  pulseCount: boolean;
+  duration: boolean;
+  pointCount: boolean;
+  minimum: boolean;
+  maximum: boolean;
+  average: boolean;
+  standardDeviation: boolean;
+  coefficientOfVariation: boolean;
+}
+
 export interface AccelSegment {
   type: 'accel' | 'decel' | 'const';
   startTime: number;
