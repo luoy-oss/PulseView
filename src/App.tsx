@@ -518,7 +518,7 @@ export function App() {
   }, []);
 
   if (abChannels && !parsing) {
-    return <AbAnalysisView channels={abChannels} fileName={abFileName} samplingRate={abSamplingRate} initialMode={encoderMode} onFile={handleFile} theme={theme} onThemeChange={setTheme} />;
+    return <AbAnalysisView channels={abChannels} fileName={abFileName} samplingRate={abSamplingRate} initialMode={encoderMode} onFile={handleFile} theme={theme} onThemeChange={setTheme} sidebarStats={sidebarStats} onSidebarStatsChange={setSidebarStats} />;
   }
 
   if (!state.samplingRate && !parsing) {
