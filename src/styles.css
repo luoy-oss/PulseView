@@ -324,6 +324,7 @@ body {
   display: flex;
   align-items: center;
   gap: 10px;
+  min-width: 0;
 }
 
 .freq-mode-group {
@@ -334,6 +335,28 @@ body {
   background: var(--surface-2);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.ab-analysis-root .app-header {
+  height: auto;
+  min-height: 56px;
+  align-items: flex-start;
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+
+.ab-analysis-root .header-r {
+  flex: 1;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.ab-analysis-root .ab-channel-group {
+  max-width: 100%;
+  flex-wrap: wrap;
+  overflow-x: visible;
 }
 
 .freq-mode-group .btn {
@@ -620,6 +643,57 @@ body {
   flex-direction: column;
   overflow: hidden;
   min-width: 0;
+}
+
+.ab-main-layout {
+  flex: 1;
+  min-height: 0;
+}
+
+@media (max-width: 900px) {
+  .app-header {
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+
+  .ab-analysis-root .app-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .ab-analysis-root .header-l,
+  .ab-analysis-root .header-r {
+    width: 100%;
+  }
+
+  .ab-analysis-root .header-r {
+    justify-content: flex-start;
+  }
+
+  .ab-main-layout .sidebar {
+    width: 220px;
+    min-width: 220px;
+    padding: 14px;
+  }
+}
+
+@media (max-width: 640px) {
+  .ab-main-layout {
+    flex-direction: column;
+    overflow: auto;
+  }
+
+  .ab-main-layout .sidebar {
+    width: auto;
+    min-width: 0;
+    max-height: 34vh;
+    border-right: none;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+
+  .ab-chart-area {
+    min-height: 520px;
+  }
 }
 
 .chart-toolbar {

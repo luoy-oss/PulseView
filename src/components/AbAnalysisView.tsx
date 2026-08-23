@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { AbChannel, AccelSegment, DirectionMapping, EncoderMode, FreqPoint } from '../types';
+import { AbChannel, AccelSegment, DirectionMapping, EncoderMode, FreqPoint, SidebarStatVisibility } from '../types';
 import { computeAbAnalysis } from '../computeAb';
 import { computeDirectionAnalysis, DIRECTION_PRESETS, suggestDirectionChannels } from '../computeDirection';
 import { fmtFreq, fmtTime } from '../utils';
@@ -9,6 +9,8 @@ import { AnalysisPanel } from './AnalysisPanel';
 import { StatusBar } from './StatusBar';
 import { ThemeId } from '../theme';
 import { ThemeSwitcher } from './ThemeSwitcher';
+import { Sidebar } from './Sidebar';
+import { DerivView, DerivChartKey } from './DerivView';
 
 interface Props {
   channels: AbChannel[];
@@ -18,9 +20,11 @@ interface Props {
   onFile: (file: File, mode?: 'normal' | 'ab' | 'direction') => void;
   theme: ThemeId;
   onThemeChange: (theme: ThemeId) => void;
+  sidebarStats: SidebarStatVisibility;
+  onSidebarStatsChange: (visibility: SidebarStatVisibility) => void;
 }
 
-export function AbAnalysisView({ channels, fileName, samplingRate, initialMode = 'ab', onFile, theme, onThemeChange }: Props) {
+export function AbAnalysisView({ channels, fileName, samplingRate, initialMode = 'ab', onFile, theme, onThemeChange, sidebarStats, onSidebarStatsChange }: Props) {
   const suggestion = useMemo(() => suggestDirectionChannels(channels), [channels]);
   const [mode, setMode] = useState<EncoderMode>(initialMode);
   const [aId, setAId] = useState(channels[0]?.id || '');
@@ -36,6 +40,10 @@ export function AbAnalysisView({ channels, fileName, samplingRate, initialMode =
   const [rangeEnd, setRangeEnd] = useState<number | null>(null);
   const [viewRange, setViewRange] = useState<ViewRange | null>(null);
   const [accelSegs, setAccelSegs] = useState<AccelSegment[]>([]);
+  const [showDerivs, setShowDerivs] = useState(false);
+  const [showFreqChart, setShowFreqChart] = useState(true);
+  const [showAccelChart, setShowAccelChart] = useState(false);
+  const [showJerkChart, setShowJerkChart] = useState(false);
   const resetZoomRef = useRef<() => void>(() => {});
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -43,6 +51,7 @@ export function AbAnalysisView({ channels, fileName, samplingRate, initialMode =
   const b = channels.find((channel) => channel.id === bId) || channels[1];
   const pulse = channels.find((channel) => channel.id === pulseId) || channels[0];
   const direction = channels.find((channel) => channel.id === directionId) || channels[1];
+  const statsChannel = mode === 'direction' ? pulse : a;
   const abResult = useMemo(() => a && b ? computeAbAnalysis(a, b) : null, [a, b]);
   const directionResult = useMemo(
     () => pulse && direction && pulse.id !== direction.id ? computeDirectionAnalysis(pulse, direction, mapping, pulseLevel) : null,
@@ -60,6 +69,13 @@ export function AbAnalysisView({ channels, fileName, samplingRate, initialMode =
     [a, mode, pulse, pulseLevel]
   );
   const duration = freqPts.length > 1 ? freqPts[freqPts.length - 1].time - freqPts[0].time : 0;
+  const pulseRisingCount = statsChannel ? Array.from(statsChannel.levels).filter((level, index) => index > 0 && level === pulseLevel && statsChannel.levels[index - 1] !== pulseLevel).length : 0;
+  const pulseFallingLevel = pulseLevel === 1 ? 0 : 1;
+  const pulseFallingCount = statsChannel ? Array.from(statsChannel.levels).filter((level, index) => index > 0 && level === pulseFallingLevel && statsChannel.levels[index - 1] !== pulseFallingLevel).length : 0;
+  const pulseCount = mode === 'direction' ? directionResult?.pulseEdges ?? pulseRisingCount : abResult?.aPulses ?? pulseRisingCount;
+  const pulseDuration = statsChannel && statsChannel.transitions.length > 1
+    ? statsChannel.transitions[statsChannel.transitions.length - 1] - statsChannel.transitions[0]
+    : duration;
 
   const resetAnalysis = useCallback(() => {
     setCursorA(null);
@@ -94,12 +110,43 @@ export function AbAnalysisView({ channels, fileName, samplingRate, initialMode =
     setRangeMode(false);
   }, []);
 
+  const toggleChart = useCallback((key: DerivChartKey) => {
+    if (key === 'freq') setShowFreqChart((value) => !value);
+    if (key === 'accel') setShowAccelChart((value) => !value);
+    if (key === 'jerk') setShowJerkChart((value) => !value);
+  }, []);
+
+  const toggleDerivView = useCallback(() => {
+    setShowDerivs((enabled) => {
+      const next = !enabled;
+      if (next) {
+        setShowFreqChart(true);
+        setShowAccelChart(true);
+        setShowJerkChart(true);
+      }
+      return next;
+    });
+  }, []);
+
+  const handleExport = useCallback(() => {
+    if (!freqPts.length) return;
+    const rows = mode === 'direction'
+      ? ['time_s,frequency_hz,direction', ...freqPts.map((point) => `${point.time.toPrecision(10)},${point.freq.toPrecision(10)},${point.freq >= 0 ? 'forward' : 'reverse'}`)]
+      : ['time_s,frequency_hz', ...freqPts.map((point) => `${point.time.toPrecision(10)},${point.freq.toPrecision(10)}`)];
+    const csv = rows.join('\n') + '\n';
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+    link.download = 'direction_frequency_data.csv';
+    link.click();
+    URL.revokeObjectURL(link.href);
+  }, [freqPts]);
+
   return (
     <div className="app-root ab-analysis-root">
       <header className="app-header">
         <div className="header-l">
           <div className="logo-mark">⚡</div>
-          <span className="title">PulseView · AB 相分析</span>
+          <span className="title">PulseView · {mode === 'direction' ? '脉冲 + 方向分析' : 'AB 相分析'}</span>
           <span className="fname">{fileName}</span>
         </div>
         <div className="header-r">
@@ -161,7 +208,9 @@ export function AbAnalysisView({ channels, fileName, samplingRate, initialMode =
             </>}
           </div>
           <button className={`btn ${rangeMode ? 'btn-p' : ''}`} onClick={() => setRangeMode((enabled) => !enabled)}>{rangeMode ? '取消框选' : '框选范围'}</button>
+          <button className={`btn ${showDerivs ? 'btn-p' : ''}`} title="同步显示频率、加速度与加加速度图" onClick={toggleDerivView}>导数视图</button>
           <button className="btn" onClick={() => resetZoomRef.current()}>重置视图</button>
+          <button className="btn" onClick={handleExport} disabled={!freqPts.length}>导出 CSV</button>
           <button className="btn" onClick={() => inputRef.current?.click()}>打开编码器文件</button>
           <button className="btn" onClick={() => window.location.reload()}>返回</button>
           <input ref={inputRef} type="file" accept=".vcd" hidden onChange={(e) => { const file = e.target.files?.[0]; if (file) onFile(file, mode === 'direction' ? 'direction' : 'ab'); e.currentTarget.value = ''; }} />
@@ -180,7 +229,42 @@ export function AbAnalysisView({ channels, fileName, samplingRate, initialMode =
             <span className="positive">正向 {directionResult.forwardCycles.toLocaleString()}</span><span className="negative">反向 {directionResult.reverseCycles.toLocaleString()}</span>
             <span>未知方向 {directionResult.unknownCycles.toLocaleString()}</span><span>平均周期 {fmtTime(directionResult.meanPeriod)}</span>
           </div> : null}
-          <div className="chart-area ab-chart-area">
+          <div className="main-layout ab-main-layout">
+            <Sidebar
+              samplingRate={samplingRate}
+              pulseCount={pulseCount}
+              risingCount={pulseRisingCount}
+              fallingCount={pulseFallingCount}
+              duration={pulseDuration}
+              allFreqPts={freqPts}
+              lowGapMode={false}
+              visibility={sidebarStats}
+              onVisibilityChange={onSidebarStatsChange}
+            />
+            <div className="chart-area ab-chart-area">
+            {showDerivs ? <DerivView
+              freqPts={freqPts}
+              allFreqPts={freqPts}
+              freqMode="falling"
+              cursorA={cursorA}
+              cursorB={cursorB}
+              rangeMode={rangeMode}
+              rangeStart={rangeStart}
+              rangeEnd={rangeEnd}
+              accelSegs={accelSegs}
+              showFreqChart={showFreqChart}
+              showAccelChart={showAccelChart}
+              showJerkChart={showJerkChart}
+              viewRange={viewRange}
+              onToggleChart={toggleChart}
+              onViewRangeChange={setViewRange}
+              onCursorChange={handleCursor}
+              onRangeModeChange={setRangeMode}
+              onRangeChange={(start, end) => { setRangeStart(start); setRangeEnd(end); }}
+              onClearRange={clearRange}
+              resetZoomRef={resetZoomRef}
+              theme={theme}
+            /> : <>
             <FreqChart
               freqPts={freqPts}
               theme={theme}
@@ -211,6 +295,8 @@ export function AbAnalysisView({ channels, fileName, samplingRate, initialMode =
               onCursorChange={handleCursor}
               theme={theme}
             />
+            </>}
+            </div>
           </div>
         </>
       )}
