@@ -4,6 +4,7 @@ import { AppShell } from './components/AppShell';
 import { AbChannel, AccelSegment, AppState, DefaultLevel, EdgeBase, FreqMode, FreqPoint, PulseLevel } from './types';
 import {
   computeFreqFromTransitions,
+  countPulsesFromTransitions,
   deriveEdgesFromTransitions,
   invertTransitionLevels,
   computeLowGapMarkers,
@@ -157,11 +158,10 @@ export function App() {
               : transLevels;
             const logicalEdges = deriveEdgesFromTransitions(transTimes, logicalLevels);
 
-            // 总脉冲数：从第一个 1 开始，每个 "1→0"（一个高电平脉冲）计一个脉冲
-            let pulseCount = 0;
-            for (let i = 1; i < logicalLevels.length; i++) {
-              if (logicalLevels[i - 1] === 1 && logicalLevels[i] === 0) pulseCount++;
-            }
+            const logicalDefaultLevel = prev.pulseLevel === 'low'
+              ? (defaultLevel === 1 ? 0 : 1)
+              : defaultLevel;
+            const pulseCount = countPulsesFromTransitions(logicalLevels);
 
             // 按用户当前选择的频率计算模式、占空比修正与基准边沿生成频率点
             const allPts = computeFreqFromTransitions(
@@ -173,7 +173,7 @@ export function App() {
               prev.edgeBase,
               prev.lowGapToleranceEnabled,
               prev.lowGapTolerancePct,
-              prev.pulseLevel === 'low' ? (defaultLevel === 1 ? 0 : 1) : defaultLevel
+              logicalDefaultLevel
             );
             return {
               ...initialState,
@@ -233,10 +233,7 @@ export function App() {
         prev.lowGapTolerancePct,
         pulseLevel === 'low' ? (defaultLevel === 1 ? 0 : 1) : defaultLevel
       );
-      let pulseCount = 0;
-      for (let i = 1; i < transLevels.length; i++) {
-        if (transLevels[i - 1] === 1 && transLevels[i] === 0) pulseCount++;
-      }
+      const pulseCount = countPulsesFromTransitions(transLevels);
       return {
         ...prev,
         pulseLevel,
