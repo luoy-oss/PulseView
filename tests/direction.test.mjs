@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { computeDirectionAnalysis, DIRECTION_PRESETS, suggestDirectionChannels } from '../src/computeDirection.ts';
+import { computeDirectionAnalysis, computeDirectionPulsePoints, DIRECTION_PRESETS, suggestDirectionChannels } from '../src/computeDirection.ts';
 
 const channel = (id, name, times, levels) => ({ id, name, transitions: new Float64Array(times), levels: new Int8Array(levels) });
 const pulse = channel('!', 'D0', [0, 1, 2, 3, 4, 5], [0, 1, 0, 1, 0, 1]);
@@ -10,6 +10,11 @@ const forward = computeDirectionAnalysis(pulse, dir, DIRECTION_PRESETS[0]);
 assert.deepEqual(forward.freqPoints.map((point) => point.freq), [-0.5, 0.5]);
 assert.equal(forward.forwardCycles, 1);
 assert.equal(forward.reverseCycles, 1);
+assert.equal(forward.meanDelay, 0.75);
+
+const signedPoints = computeDirectionPulsePoints(pulse, dir, DIRECTION_PRESETS[0], 1, 'rising', false, 'rising');
+assert.deepEqual(signedPoints.map((point) => Math.sign(point.freq)), [-1, 1]);
+assert.ok(signedPoints.every((point) => point.period !== undefined));
 
 const beforePulse = channel('"', 'direction', [0, 0.2, 2.2], [1, 0, 1]);
 const delayed = computeDirectionAnalysis(pulse, beforePulse, DIRECTION_PRESETS[0]);

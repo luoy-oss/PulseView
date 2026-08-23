@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { Chart, ChartData, ChartOptions } from 'chart.js/auto';
-import { FreqPoint, AccelSegment } from '../types';
+import { CursorMarker, FreqPoint, AccelSegment } from '../types';
 import {
   fmtFreq,
   fmtFreqShort,
@@ -20,6 +20,11 @@ interface Props {
   risingEdges: Float64Array | null;
   onAccelDetect: (segs: AccelSegment[]) => void;
   onCursorChange: (which: 'A' | 'B', idx: number | null) => void;
+  cursorMarkers?: CursorMarker[];
+  activeCursorId?: string;
+  onCursorMarkersChange?: (markers: CursorMarker[], activeCursorId: string) => void;
+  cursorPair?: [string, string] | null;
+  onCursorPairChange?: (pair: [string, string]) => void;
   theme: ThemeId;
 }
 
@@ -32,6 +37,11 @@ export function AnalysisPanel({
   risingEdges,
   onAccelDetect,
   onCursorChange,
+  cursorMarkers = [],
+  activeCursorId = 'cursor-1',
+  onCursorMarkersChange,
+  cursorPair,
+  onCursorPairChange,
   theme,
 }: Props) {
   const [tab, setTab] = useState<'cursor' | 'accel' | 'hist'>('cursor');
@@ -66,6 +76,11 @@ export function AnalysisPanel({
             cursorB={cursorB}
             risingEdges={risingEdges}
             onCursorChange={onCursorChange}
+            cursorMarkers={cursorMarkers}
+            activeCursorId={activeCursorId}
+            onCursorMarkersChange={onCursorMarkersChange}
+            cursorPair={cursorPair}
+            onCursorPairChange={onCursorPairChange}
           />
         )}
         {tab === 'accel' && (
@@ -87,20 +102,63 @@ function CursorPane({
   cursorB,
   risingEdges,
   onCursorChange,
+  cursorMarkers,
+  activeCursorId,
+  onCursorMarkersChange,
+  cursorPair,
+  onCursorPairChange,
 }: {
   freqPts: FreqPoint[];
   cursorA: number | null;
   cursorB: number | null;
   risingEdges: Float64Array | null;
   onCursorChange: (which: 'A' | 'B', idx: number | null) => void;
+  cursorMarkers: CursorMarker[];
+  activeCursorId: string;
+  onCursorMarkersChange?: (markers: CursorMarker[], activeCursorId: string) => void;
+  cursorPair?: [string, string] | null;
+  onCursorPairChange?: (pair: [string, string]) => void;
 }) {
-  const a = cursorA !== null ? freqPts[cursorA] : null;
-  const b = cursorB !== null ? freqPts[cursorB] : null;
+  const pair: [string, string] = cursorPair && cursorMarkers.length >= 2 ? cursorPair : ['cursor-1', 'cursor-2'];
+  const pairMarkers = pair.map((id) => cursorMarkers.find((marker) => marker.id === id));
+  const selectedA = pairMarkers[0]?.index ?? cursorA;
+  const selectedB = pairMarkers[1]?.index ?? cursorB;
+  const a = selectedA !== null && selectedA !== undefined ? freqPts[selectedA] : null;
+  const b = selectedB !== null && selectedB !== undefined ? freqPts[selectedB] : null;
   const pulseCount =
     a && b && risingEdges ? countPulsesBetween(risingEdges, a.time, b.time) : null;
 
   return (
     <div>
+      <div className="cursor-marker-list">
+        {(cursorMarkers.length ? cursorMarkers : [
+          { id: 'cursor-1', label: 'A', index: cursorA, color: 'var(--teal)' },
+          { id: 'cursor-2', label: 'B', index: cursorB, color: 'var(--green)' },
+        ]).map((marker) => (
+          <label key={marker.id} className="cursor-marker-control">
+            <input type="radio" name="active-cursor" checked={marker.id === activeCursorId} onChange={() => onCursorMarkersChange?.(cursorMarkers, marker.id)} />
+            {marker.label}
+            <select value={marker.index ?? ''} onChange={(e) => onCursorMarkersChange?.(cursorMarkers.map((item) => item.id === marker.id ? { ...item, index: e.target.value === '' ? null : Number(e.target.value) } : item), activeCursorId)}>
+              <option value="">未设置</option>
+              {freqPts.map((point, index) => <option key={index} value={index}>{fmtTimeShort(point.time)}</option>)}
+            </select>
+            {cursorMarkers.length > 2 && <button type="button" className="btn btn-sm" onClick={() => onCursorMarkersChange?.(cursorMarkers.filter((item) => item.id !== marker.id), activeCursorId === marker.id ? (cursorMarkers.find((item) => item.id !== marker.id)?.id || '') : activeCursorId)}>删除</button>}
+          </label>
+        ))}
+        {onCursorMarkersChange && cursorMarkers.length < 6 && <button type="button" className="btn btn-sm" onClick={() => { const n = cursorMarkers.length + 1; onCursorMarkersChange([...cursorMarkers, { id: `cursor-${Date.now()}`, label: `C${n}`, index: null, color: ['var(--teal)', 'var(--green)', 'var(--rose)', 'var(--accent)', '#8ab4f8', '#d7a7ff'][n - 1] }], activeCursorId); }}>新增游标</button>}
+      </div>
+      {cursorMarkers.length > 2 && onCursorPairChange && (
+        <div className="cursor-pair-control">
+          <span className="label">统计区间</span>
+          <select value={pair[0]} onChange={(e) => onCursorPairChange([e.target.value, pair[1]])}>
+            {cursorMarkers.map((marker) => <option key={marker.id} value={marker.id}>{marker.label}</option>)}
+          </select>
+          <span>至</span>
+          <select value={pair[1]} onChange={(e) => onCursorPairChange([pair[0], e.target.value])}>
+            {cursorMarkers.map((marker) => <option key={marker.id} value={marker.id}>{marker.label}</option>)}
+          </select>
+        </div>
+      )}
       <div className="cursor-row">
         <div className="cursor-card">
           <span className="cursor-tag a">A</span>

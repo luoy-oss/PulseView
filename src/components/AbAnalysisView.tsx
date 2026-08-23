@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { AbChannel, AccelSegment, DirectionMapping, EncoderMode, FreqPoint, SidebarStatVisibility } from '../types';
+import { AbChannel, AccelSegment, CursorMarker, DirectionMapping, EdgeBase, EncoderMode, FreqMode, FreqPoint, SidebarStatVisibility } from '../types';
 import { computeAbAnalysis } from '../computeAb';
-import { computeDirectionAnalysis, DIRECTION_PRESETS, suggestDirectionChannels } from '../computeDirection';
+import { computeDirectionAnalysis, computeDirectionPulsePoints, DIRECTION_PRESETS, suggestDirectionChannels } from '../computeDirection';
 import { fmtFreq, fmtTime } from '../utils';
 import { ViewRange } from '../decimate';
 import { FreqChart } from './FreqChart';
@@ -32,9 +32,18 @@ export function AbAnalysisView({ channels, fileName, samplingRate, initialMode =
   const [pulseId, setPulseId] = useState(suggestion?.pulse.id || channels[0]?.id || '');
   const [directionId, setDirectionId] = useState(suggestion?.direction.id || channels[1]?.id || '');
   const [pulseLevel, setPulseLevel] = useState<0 | 1>(1);
+  const [freqMode, setFreqMode] = useState<FreqMode>('rising');
+  const [dutyCorrect, setDutyCorrect] = useState(false);
+  const [edgeBase, setEdgeBase] = useState<EdgeBase>('rising');
   const [mapping, setMapping] = useState<DirectionMapping>(DIRECTION_PRESETS[0]);
   const [cursorA, setCursorA] = useState<number | null>(null);
   const [cursorB, setCursorB] = useState<number | null>(null);
+  const [cursorMarkers, setCursorMarkers] = useState<CursorMarker[]>([
+    { id: 'cursor-1', label: 'A', index: null, color: 'var(--teal)' },
+    { id: 'cursor-2', label: 'B', index: null, color: 'var(--green)' },
+  ]);
+  const [activeCursorId, setActiveCursorId] = useState('cursor-1');
+  const [cursorPair, setCursorPair] = useState<[string, string]>(['cursor-1', 'cursor-2']);
   const [rangeMode, setRangeMode] = useState(false);
   const [rangeStart, setRangeStart] = useState<number | null>(null);
   const [rangeEnd, setRangeEnd] = useState<number | null>(null);
@@ -54,13 +63,15 @@ export function AbAnalysisView({ channels, fileName, samplingRate, initialMode =
   const statsChannel = mode === 'direction' ? pulse : a;
   const abResult = useMemo(() => a && b ? computeAbAnalysis(a, b) : null, [a, b]);
   const directionResult = useMemo(
-    () => pulse && direction && pulse.id !== direction.id ? computeDirectionAnalysis(pulse, direction, mapping, pulseLevel) : null,
-    [pulse, direction, mapping, pulseLevel]
+    () => pulse && direction && pulse.id !== direction.id ? computeDirectionAnalysis(pulse, direction, mapping, pulseLevel, freqMode, dutyCorrect, edgeBase) : null,
+    [pulse, direction, mapping, pulseLevel, freqMode, dutyCorrect, edgeBase]
   );
   const result = mode === 'ab' ? abResult : directionResult;
   const freqPts = useMemo<FreqPoint[]>(
-    () => result?.freqPoints.map((point) => ({ time: point.time, freq: point.freq })) || [],
-    [result]
+    () => mode === 'direction' && pulse && direction
+      ? computeDirectionPulsePoints(pulse, direction, mapping, pulseLevel, freqMode, dutyCorrect, edgeBase)
+      : result?.freqPoints.map((point) => ({ time: point.time, freq: point.freq })) || [],
+    [result, mode, pulse, direction, mapping, pulseLevel, freqMode, dutyCorrect, edgeBase]
   );
   const aRisingEdges = useMemo(
     () => mode === 'ab'
@@ -205,6 +216,13 @@ export function AbAnalysisView({ channels, fileName, samplingRate, initialMode =
               <select id="pulse-level" value={pulseLevel} onChange={(e) => { setPulseLevel(Number(e.target.value) as 0 | 1); resetAnalysis(); }}>
                 <option value="1">高电平</option><option value="0">低电平</option>
               </select>
+              <label className="ctrl-label" htmlFor="direction-freq-mode">频率</label>
+              <select id="direction-freq-mode" value={freqMode} onChange={(e) => { setFreqMode(e.target.value as FreqMode); resetAnalysis(); }}>
+                <option value="pulse">脉宽</option><option value="rising">上升沿</option><option value="falling">下降沿</option>
+              </select>
+              <label><input type="checkbox" checked={dutyCorrect} onChange={(e) => setDutyCorrect(e.target.checked)} /> 占空比修正</label>
+              <label className="ctrl-label" htmlFor="direction-edge-base">基准</label>
+              <select id="direction-edge-base" value={edgeBase} onChange={(e) => setEdgeBase(e.target.value as EdgeBase)}><option value="rising">上升沿</option><option value="falling">下降沿</option></select>
             </>}
           </div>
           <button className={`btn ${rangeMode ? 'btn-p' : ''}`} onClick={() => setRangeMode((enabled) => !enabled)}>{rangeMode ? '取消框选' : '框选范围'}</button>
@@ -227,7 +245,7 @@ export function AbAnalysisView({ channels, fileName, samplingRate, initialMode =
           </div> : directionResult ? <div className="ab-info-strip">
             <span>脉冲: {pulse!.name} [{pulse!.id}]</span><span>方向: {direction!.name} [{direction!.id}]</span>
             <span className="positive">正向 {directionResult.forwardCycles.toLocaleString()}</span><span className="negative">反向 {directionResult.reverseCycles.toLocaleString()}</span>
-            <span>未知方向 {directionResult.unknownCycles.toLocaleString()}</span><span>平均周期 {fmtTime(directionResult.meanPeriod)}</span>
+            <span>未知方向 {directionResult.unknownCycles.toLocaleString()}</span><span>平均周期 {fmtTime(directionResult.meanPeriod)}</span><span>方向延时 {fmtTime(directionResult.meanDelay)}</span>
           </div> : null}
           <div className="main-layout ab-main-layout">
             <Sidebar
@@ -259,6 +277,9 @@ export function AbAnalysisView({ channels, fileName, samplingRate, initialMode =
               onToggleChart={toggleChart}
               onViewRangeChange={setViewRange}
               onCursorChange={handleCursor}
+              cursorMarkers={cursorMarkers}
+              activeCursorId={activeCursorId}
+              onCursorMarkersChange={(markers, active) => { setCursorMarkers(markers); setActiveCursorId(active); }}
               onRangeModeChange={setRangeMode}
               onRangeChange={(start, end) => { setRangeStart(start); setRangeEnd(end); }}
               onClearRange={clearRange}
@@ -279,6 +300,9 @@ export function AbAnalysisView({ channels, fileName, samplingRate, initialMode =
               viewRange={viewRange}
               onViewRangeChange={setViewRange}
               onCursorChange={handleCursor}
+              cursorMarkers={cursorMarkers}
+              activeCursorId={activeCursorId}
+              onCursorMarkersChange={(markers, active) => { setCursorMarkers(markers); setActiveCursorId(active); }}
               onRangeModeChange={setRangeMode}
               onRangeChange={(start, end) => { setRangeStart(start); setRangeEnd(end); }}
               onClearRange={clearRange}
@@ -293,6 +317,11 @@ export function AbAnalysisView({ channels, fileName, samplingRate, initialMode =
             risingEdges={aRisingEdges}
               onAccelDetect={setAccelSegs}
               onCursorChange={handleCursor}
+              cursorMarkers={cursorMarkers}
+              activeCursorId={activeCursorId}
+              onCursorMarkersChange={(markers, active) => { setCursorMarkers(markers); setActiveCursorId(active); }}
+              cursorPair={cursorPair}
+              onCursorPairChange={setCursorPair}
               theme={theme}
             />
             </>}
