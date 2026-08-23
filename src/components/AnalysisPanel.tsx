@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { memo, useState, useCallback, useRef, useEffect } from 'react';
 import { Chart, ChartData, ChartOptions } from 'chart.js/auto';
 import { CursorMarker, FreqPoint, AccelSegment } from '../types';
 import {
@@ -28,7 +28,7 @@ interface Props {
   theme: ThemeId;
 }
 
-export function AnalysisPanel({
+export const AnalysisPanel = memo(function AnalysisPanel({
   allFreqPts,
   cursorA,
   cursorB,
@@ -94,7 +94,7 @@ export function AnalysisPanel({
       </div>
     </div>
   );
-}
+});
 
 function CursorPane({
   freqPts,
@@ -138,10 +138,23 @@ function CursorPane({
           <label key={marker.id} className="cursor-marker-control">
             <input type="radio" name="active-cursor" checked={marker.id === activeCursorId} onChange={() => onCursorMarkersChange?.(cursorMarkers, marker.id)} />
             {marker.label}
-            <select value={marker.index ?? ''} onChange={(e) => onCursorMarkersChange?.(cursorMarkers.map((item) => item.id === marker.id ? { ...item, index: e.target.value === '' ? null : Number(e.target.value) } : item), activeCursorId)}>
-              <option value="">未设置</option>
-              {freqPts.map((point, index) => <option key={index} value={index}>{fmtTimeShort(point.time)}</option>)}
-            </select>
+            <input
+              type="number"
+              min={0}
+              max={Math.max(0, freqPts.length - 1)}
+              placeholder="点索引"
+              value={marker.index ?? ''}
+              onChange={(e) => {
+                const value = e.target.value === '' ? null : Number(e.target.value);
+                const index = value === null || !Number.isFinite(value)
+                  ? null
+                  : Math.max(0, Math.min(freqPts.length - 1, Math.trunc(value)));
+                onCursorMarkersChange?.(
+                  cursorMarkers.map((item) => item.id === marker.id ? { ...item, index } : item),
+                  activeCursorId
+                );
+              }}
+            />
             {cursorMarkers.length > 2 && <button type="button" className="btn btn-sm" onClick={() => onCursorMarkersChange?.(cursorMarkers.filter((item) => item.id !== marker.id), activeCursorId === marker.id ? (cursorMarkers.find((item) => item.id !== marker.id)?.id || '') : activeCursorId)}>删除</button>}
           </label>
         ))}
