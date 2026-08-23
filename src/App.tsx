@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { UploadScreen } from './components/UploadScreen';
 import { AppShell } from './components/AppShell';
-import { AbChannel, AccelSegment, AppState, DefaultLevel, EdgeBase, FreqMode, FreqPoint, PulseLevel } from './types';
+import { AbChannel, AccelSegment, AppState, DefaultLevel, EdgeBase, FreqMode, FreqPoint, PulseLevel, SidebarStatVisibility } from './types';
 import {
   computeFreqFromTransitions,
   countPulsesFromTransitions,
@@ -55,8 +55,40 @@ const initialState: AppState = {
   showJerkChart: false,
 };
 
+const defaultSidebarStats: SidebarStatVisibility = {
+  samplingRate: true,
+  risingCount: true,
+  fallingCount: true,
+  pulseCount: true,
+  duration: true,
+  pointCount: true,
+  minimum: true,
+  maximum: true,
+  average: true,
+  standardDeviation: true,
+  coefficientOfVariation: true,
+};
+
+function loadSidebarStats(): SidebarStatVisibility {
+  try {
+    const saved = window.localStorage.getItem('pulseview-sidebar-stats');
+    if (!saved) return defaultSidebarStats;
+    const parsed = JSON.parse(saved) as Partial<SidebarStatVisibility>;
+    return Object.keys(defaultSidebarStats).reduce((result, key) => {
+      const statKey = key as keyof SidebarStatVisibility;
+      result[statKey] = typeof parsed[statKey] === 'boolean'
+        ? parsed[statKey] as boolean
+        : defaultSidebarStats[statKey];
+      return result;
+    }, {} as SidebarStatVisibility);
+  } catch {
+    return defaultSidebarStats;
+  }
+}
+
 export function App() {
   const [state, setState] = useState<AppState>(initialState);
+  const [sidebarStats, setSidebarStats] = useState<SidebarStatVisibility>(loadSidebarStats);
   const [parsing, setParsing] = useState(false);
   const [parseProgress, setParseProgress] = useState('');
   const [abChannels, setAbChannels] = useState<AbChannel[] | null>(null);
@@ -70,6 +102,14 @@ export function App() {
     document.documentElement.dataset.theme = theme;
     window.localStorage.setItem('pulseview-theme', theme);
   }, [theme]);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem('pulseview-sidebar-stats', JSON.stringify(sidebarStats));
+    } catch {
+      // Storage may be disabled or unavailable; keep the preference in memory.
+    }
+  }, [sidebarStats]);
 
   const handleFile = useCallback((file: File, mode: 'normal' | 'ab' | 'direction' = 'normal') => {
     const format = detectFormat(file);
@@ -494,6 +534,8 @@ export function App() {
       state={state}
       theme={theme}
       onThemeChange={setTheme}
+      sidebarStats={sidebarStats}
+      onSidebarStatsChange={setSidebarStats}
       onFile={handleFile}
       onFreqModeChange={updateFreqMode}
       onDutyCorrectChange={updateDutyCorrect}
