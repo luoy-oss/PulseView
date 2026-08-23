@@ -1,3 +1,4 @@
+import { memo, useMemo } from 'react';
 import { FreqPoint, SidebarStatVisibility } from '../types';
 import { fmtFreq, fmtTime } from '../utils';
 import { computeStats } from '../compute';
@@ -14,7 +15,7 @@ interface Props {
   onVisibilityChange: (visibility: SidebarStatVisibility) => void;
 }
 
-export function Sidebar({
+export const Sidebar = memo(function Sidebar({
   samplingRate,
   pulseCount,
   risingCount,
@@ -25,7 +26,7 @@ export function Sidebar({
   visibility,
   onVisibilityChange,
 }: Props) {
-  const stats = computeStats(allFreqPts);
+  const stats = useMemo(() => computeStats(allFreqPts), [allFreqPts]);
   const hasBaseStats = visibility.samplingRate || visibility.risingCount || visibility.fallingCount || visibility.pulseCount || visibility.duration;
   const hasDerivedStats = Boolean(stats) && (
     visibility.pointCount || visibility.minimum || visibility.maximum || visibility.average ||
@@ -63,7 +64,7 @@ export function Sidebar({
       )}
     </aside>
   );
-}
+});
 
 const SIDEBAR_STAT_OPTIONS: Array<{ key: keyof SidebarStatVisibility; label: string }> = [
   { key: 'samplingRate', label: '采样频率' },

@@ -4,7 +4,6 @@ import {
   ChartData,
   ChartOptions,
   ScatterDataPoint,
-  Plugin,
 } from 'chart.js/auto';
 import { Chart as ReactChart } from 'react-chartjs-2';
 import zoomPlugin from 'chartjs-plugin-zoom';
@@ -49,45 +48,19 @@ export function DerivSeriesChart({
   const chartRef = useRef<Chart<'scatter', ScatterDataPoint[]> | null>(null);
   const [chartWidth, setChartWidth] = useState(1200);
 
-  // 与 FreqChart 相同的可见范围同步机制：无实质变化时不通知父级，
-  // 避免受控状态下的循环重渲染
-  const lastViewRef = useRef<ViewRange | null>(null);
-  const viewSyncRef = useRef<(min: number, max: number) => void>(() => {});
-  useEffect(() => {
-    viewSyncRef.current = (min, max) => {
-      const prev = lastViewRef.current;
-      if (prev) {
-        const tol = (Math.abs(min) + Math.abs(max) + 1) * 1e-9;
-        if (Math.abs(prev.min - min) < tol && Math.abs(prev.max - max) < tol) return;
-      }
-      lastViewRef.current = { min, max };
-      onViewRangeChange({ min, max });
-    };
-  });
-  const viewSyncPlugin = useMemo<Plugin<'scatter'>>(
-    () => ({
-      id: 'view-sync',
-      afterUpdate(chart) {
-        const x = chart.scales.x;
-        if (typeof x.min === 'number' && typeof x.max === 'number') {
-          viewSyncRef.current(x.min, x.max);
-        }
-      },
-    }),
-    []
-  );
-
-  // 数据变化（重新载入文件 / 切换频率模式）时清空本地判等缓存，
-  // 视图重置由父级（DerivView）统一触发
-  useEffect(() => {
-    lastViewRef.current = null;
-  }, [pts]);
+  // Publish the shared range only after a gesture completes, avoiding a
+  // Chart.js -> React -> Chart.js feedback loop on every zoom frame.
+  const syncViewRange = useCallback((chart: Chart<'scatter', ScatterDataPoint[]>) => {
+    const x = chart.scales.x;
+    if (typeof x.min === 'number' && typeof x.max === 'number') {
+      onViewRangeChange({ min: x.min, max: x.max });
+    }
+  }, [onViewRangeChange]);
 
   useEffect(() => {
     const doReset = () => {
       const chart = chartRef.current;
       if (chart) chart.resetZoom();
-      lastViewRef.current = null;
       onViewRangeChange(null);
     };
     if (onResetZoomReady) onResetZoomReady(doReset);
@@ -266,11 +239,16 @@ export function DerivSeriesChart({
           },
         },
         zoom: {
-          pan: { enabled: true, mode: 'x' },
+          pan: {
+            enabled: true,
+            mode: 'x',
+            onPanComplete: ({ chart }) => syncViewRange(chart as Chart<'scatter', ScatterDataPoint[]>),
+          },
           zoom: {
             wheel: { enabled: true },
             pinch: { enabled: true },
             mode: 'x',
+            onZoomComplete: ({ chart }) => syncViewRange(chart as Chart<'scatter', ScatterDataPoint[]>),
           },
         },
         annotation: {
@@ -279,7 +257,7 @@ export function DerivSeriesChart({
       },
       onClick: handleChartClick as (evt: unknown) => void,
     }),
-    [viewRange, handleChartClick, buildAnnotations, formatValue, yTitle, colors]
+    [viewRange, handleChartClick, buildAnnotations, formatValue, yTitle, colors, syncViewRange]
   );
 
   // Update annotations when deps change
@@ -299,7 +277,6 @@ export function DerivSeriesChart({
         type="scatter"
         data={data}
         options={options}
-        plugins={[viewSyncPlugin]}
       />
     </div>
   );

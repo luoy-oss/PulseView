@@ -4,7 +4,6 @@ import {
   ChartData,
   ChartOptions,
   ScatterDataPoint,
-  Plugin,
 } from 'chart.js/auto';
 import { Chart as ReactChart } from 'react-chartjs-2';
 import zoomPlugin from 'chartjs-plugin-zoom';
@@ -91,39 +90,17 @@ export function FreqChart({
   // 图表实际像素宽度，用于按像素列做 min/max 抽稀
   const [chartWidth, setChartWidth] = useState(1200);
 
-  // 每次图表更新后同步可见范围，覆盖滚轮缩放、平移、重置等所有路径；
-  // 该值同时用于：1) 写回 options.scales.x.min/max 使缩放状态在 React 重渲染后不丢失
-  // 2) 定位可见数据区间做抽稀。多个导数图共享同一 viewRange，实现同步缩放；
-  // 与上次记录比较，无实质变化时不通知父级，避免受控状态下的循环重渲染
-  const lastViewRef = useRef<ViewRange | null>(null);
-  const viewSyncRef = useRef<(min: number, max: number) => void>(() => {});
-  useEffect(() => {
-    viewSyncRef.current = (min, max) => {
-      const prev = lastViewRef.current;
-      if (prev) {
-        const tol = (Math.abs(min) + Math.abs(max) + 1) * 1e-9;
-        if (Math.abs(prev.min - min) < tol && Math.abs(prev.max - max) < tol) return;
-      }
-      lastViewRef.current = { min, max };
-      onViewRangeChange({ min, max });
-    };
-  });
-  const viewSyncPlugin = useMemo<Plugin<'scatter'>>(
-    () => ({
-      id: 'view-sync',
-      afterUpdate(chart) {
-        const x = chart.scales.x;
-        if (typeof x.min === 'number' && typeof x.max === 'number') {
-          viewSyncRef.current(x.min, x.max);
-        }
-      },
-    }),
-    []
-  );
+  // Only publish after a gesture completes. Syncing from afterUpdate creates
+  // a Chart.js -> React -> Chart.js feedback loop and causes snap-back.
+  const syncViewRange = useCallback((chart: Chart<'scatter', ScatterDataPoint[]>) => {
+    const x = chart.scales.x;
+    if (typeof x.min === 'number' && typeof x.max === 'number') {
+      onViewRangeChange({ min: x.min, max: x.max });
+    }
+  }, [onViewRangeChange]);
 
   // 数据变化（重新载入文件 / 切换频率模式）时重置可见范围
   useEffect(() => {
-    lastViewRef.current = null;
     onViewRangeChange(null);
   }, [freqPts]);
 
@@ -132,7 +109,6 @@ export function FreqChart({
     const doReset = () => {
       const chart = chartRef.current;
       if (chart) chart.resetZoom();
-      lastViewRef.current = null;
       onViewRangeChange(null);
     };
     if (onResetZoomReady) {
@@ -401,11 +377,16 @@ export function FreqChart({
           },
         },
         zoom: {
-          pan: { enabled: !rangeMode, mode: 'x' },
+          pan: {
+            enabled: !rangeMode,
+            mode: 'x',
+            onPanComplete: ({ chart }) => syncViewRange(chart as Chart<'scatter', ScatterDataPoint[]>),
+          },
           zoom: {
             wheel: { enabled: true },
             pinch: { enabled: true },
             mode: 'x',
+            onZoomComplete: ({ chart }) => syncViewRange(chart as Chart<'scatter', ScatterDataPoint[]>),
           },
         },
         annotation: {
@@ -414,7 +395,7 @@ export function FreqChart({
       },
       onClick: handleChartClick as (evt: unknown) => void,
     }),
-    [viewRange, rangeMode, handleChartClick, buildAnnotations, freqMode, colors]
+    [viewRange, rangeMode, handleChartClick, buildAnnotations, freqMode, colors, syncViewRange]
   );
 
   // Range drag handlers
@@ -546,7 +527,6 @@ export function FreqChart({
           type="scatter"
           data={data}
           options={options}
-          plugins={[viewSyncPlugin]}
           onMouseDown={handleMouseDown}
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}

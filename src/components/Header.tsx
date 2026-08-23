@@ -1,4 +1,4 @@
-import { useRef, useCallback } from 'react';
+import { memo, useRef, useCallback } from 'react';
 import { DefaultLevel, EdgeBase, FreqPoint, FreqMode, PulseLevel } from '../types';
 import { ThemeSwitcher } from './ThemeSwitcher';
 import { ThemeId } from '../theme';
@@ -34,7 +34,7 @@ interface Props {
   onThemeChange: (theme: ThemeId) => void;
 }
 
-export function Header({
+export const Header = memo(function Header({
   fileName,
   allFreqPts,
   freqMode,
@@ -258,4 +258,4 @@ export function Header({
       </div>
     </header>
   );
-}
+});
