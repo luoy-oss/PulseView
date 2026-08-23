@@ -9,7 +9,7 @@ import {
 import { Chart as ReactChart } from 'react-chartjs-2';
 import zoomPlugin from 'chartjs-plugin-zoom';
 import annotationPlugin from 'chartjs-plugin-annotation';
-import { FreqPoint, AccelSegment, FreqMode, LowGapMarker } from '../types';
+import { CursorMarker, FreqPoint, AccelSegment, FreqMode, LowGapMarker } from '../types';
 import { fmtTime, fmtTimeShort, fmtFreq, fmtFreqShort } from '../utils';
 import { buildVisibleData, ViewRange } from '../decimate';
 import { ThemeId, THEME_COLORS } from '../theme';
@@ -42,6 +42,9 @@ interface Props {
   viewRange: ViewRange | null;
   onViewRangeChange: (r: ViewRange | null) => void;
   onCursorChange: (which: 'A' | 'B', idx: number | null) => void;
+  cursorMarkers?: CursorMarker[];
+  activeCursorId?: string;
+  onCursorMarkersChange?: (markers: CursorMarker[], activeCursorId: string) => void;
   onRangeModeChange: (mode: boolean) => void;
   onRangeChange: (
     start: number | null,
@@ -70,6 +73,9 @@ export function FreqChart({
   viewRange,
   onViewRangeChange,
   onCursorChange,
+  cursorMarkers = [],
+  activeCursorId = 'cursor-1',
+  onCursorMarkersChange,
   onRangeModeChange,
   onRangeChange,
   onClearRange,
@@ -202,6 +208,16 @@ export function FreqChart({
       };
     }
 
+    cursorMarkers.forEach((marker) => {
+      if (marker.index !== null && freqPts[marker.index]) {
+        annos[marker.id] = {
+          type: 'line', xMin: freqPts[marker.index].time, xMax: freqPts[marker.index].time,
+          borderColor: marker.color, borderWidth: 1.5, borderDash: [6, 4],
+          label: { display: true, content: marker.label, position: 'start', backgroundColor: marker.color, color: colors.bg, padding: { x: 5, y: 2 }, borderRadius: 3 },
+        };
+      }
+    });
+
     if (rangeStart !== null && rangeEnd !== null) {
       annos.rangeBox = {
         type: 'box',
@@ -256,7 +272,7 @@ export function FreqChart({
     });
 
     return annos;
-  }, [cursorA, cursorB, rangeStart, rangeEnd, accelSegs, lowGapMarkers, freqPts, colors]);
+  }, [cursorA, cursorB, cursorMarkers, rangeStart, rangeEnd, accelSegs, lowGapMarkers, freqPts, colors]);
 
   const handleChartClick = useCallback(
     (evt: { native?: Event }) => {
@@ -283,10 +299,13 @@ export function FreqChart({
       )
         lo--;
 
-      if (native?.ctrlKey || native?.metaKey) onCursorChange('B', lo);
+      if (onCursorMarkersChange && cursorMarkers.length) {
+        const target = cursorMarkers.find((marker) => marker.id === activeCursorId) || cursorMarkers[0];
+        onCursorMarkersChange(cursorMarkers.map((marker) => marker.id === target.id ? { ...marker, index: lo } : marker), target.id);
+      } else if (native?.ctrlKey || native?.metaKey) onCursorChange('B', lo);
       else onCursorChange('A', lo);
     },
-    [rangeMode, freqPts, onCursorChange]
+    [rangeMode, freqPts, onCursorChange, cursorMarkers, activeCursorId, onCursorMarkersChange]
   );
 
   const options = useMemo<ChartOptions<'scatter'>>(

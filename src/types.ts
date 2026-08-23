@@ -6,6 +6,13 @@ export interface FreqPoint {
   dutyCycle?: number;
 }
 
+export interface CursorMarker {
+  id: string;
+  label: string;
+  index: number | null;
+  color: string;
+}
+
 export interface LowGapMarker {
   startTime: number;
   endTime: number;
@@ -120,6 +127,7 @@ export interface DirectionAnalysis {
   reverseCycles: number;
   unknownCycles: number;
   meanPeriod: number;
+  meanDelay: number;
 }
 
 export interface AbFreqPoint {
@@ -141,6 +149,9 @@ export interface AppState {
   freqPts: FreqPoint[];
   cursorA: number | null;
   cursorB: number | null;
+  cursorMarkers: CursorMarker[];
+  activeCursorId: string;
+  cursorPair: [string, string] | null;
   accelSegs: AccelSegment[];
   rangeMode: boolean;
   rangeStart: number | null;

@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { UploadScreen } from './components/UploadScreen';
 import { AppShell } from './components/AppShell';
-import { AbChannel, AccelSegment, AppState, DefaultLevel, EdgeBase, FreqMode, FreqPoint, PulseLevel, SidebarStatVisibility } from './types';
+import { AbChannel, AccelSegment, AppState, CursorMarker, DefaultLevel, EdgeBase, FreqMode, FreqPoint, PulseLevel, SidebarStatVisibility } from './types';
 import {
   computeFreqFromTransitions,
   countPulsesFromTransitions,
@@ -32,6 +32,12 @@ const initialState: AppState = {
   freqPts: [],
   cursorA: null,
   cursorB: null,
+  cursorMarkers: [
+    { id: 'cursor-1', label: 'A', index: null, color: 'var(--teal)' },
+    { id: 'cursor-2', label: 'B', index: null, color: 'var(--green)' },
+  ],
+  activeCursorId: 'cursor-1',
+  cursorPair: ['cursor-1', 'cursor-2'],
   accelSegs: [],
   rangeMode: false,
   rangeStart: null,
@@ -448,6 +454,23 @@ export function App() {
     []
   );
 
+  const updateCursorMarkers = useCallback((markers: CursorMarker[], activeCursorId: string) => {
+    setState((prev) => ({
+      ...prev,
+      cursorMarkers: markers,
+      activeCursorId,
+      cursorA: markers[0]?.index ?? null,
+      cursorB: markers[1]?.index ?? null,
+      cursorPair: prev.cursorPair && prev.cursorPair.every((id) => markers.some((marker) => marker.id === id))
+        ? prev.cursorPair
+        : markers.length >= 2 ? [markers[0].id, markers[1].id] : null,
+    }));
+  }, []);
+
+  const updateCursorPair = useCallback((pair: [string, string]) => {
+    setState((prev) => ({ ...prev, cursorPair: pair }));
+  }, []);
+
   const setRangeMode = useCallback((mode: boolean) => {
     setState((prev) => ({ ...prev, rangeMode: mode }));
   }, []);
@@ -546,6 +569,8 @@ export function App() {
       onLowGapAnnotationChange={updateLowGapAnnotation}
       onAccelDetect={updateAccelSegs}
       onCursorChange={updateCursor}
+      onCursorMarkersChange={updateCursorMarkers}
+      onCursorPairChange={updateCursorPair}
       onRangeModeChange={setRangeMode}
       onRangeChange={setRange}
       onClearRange={clearRange}

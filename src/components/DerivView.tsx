@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
-import { FreqPoint, AccelSegment, FreqMode, LowGapMarker } from '../types';
+import { CursorMarker, FreqPoint, AccelSegment, FreqMode, LowGapMarker } from '../types';
 import { FreqChart } from './FreqChart';
 import { DerivSeriesChart } from './DerivSeriesChart';
 import { computeDerivatives } from '../compute';
@@ -27,6 +27,9 @@ interface Props {
   onToggleChart: (key: DerivChartKey) => void;
   onViewRangeChange: (r: ViewRange | null) => void;
   onCursorChange: (which: 'A' | 'B', idx: number | null) => void;
+  cursorMarkers?: CursorMarker[];
+  activeCursorId?: string;
+  onCursorMarkersChange?: (markers: CursorMarker[], activeCursorId: string) => void;
   onRangeModeChange: (mode: boolean) => void;
   onRangeChange: (
     start: number | null,
@@ -59,6 +62,9 @@ export function DerivView({
   onToggleChart,
   onViewRangeChange,
   onCursorChange,
+  cursorMarkers = [],
+  activeCursorId = 'cursor-1',
+  onCursorMarkersChange,
   onRangeModeChange,
   onRangeChange,
   onClearRange,
@@ -139,6 +145,9 @@ export function DerivView({
             viewRange={viewRange}
             onViewRangeChange={onViewRangeChange}
             onCursorChange={onCursorChange}
+            cursorMarkers={cursorMarkers}
+            activeCursorId={activeCursorId}
+            onCursorMarkersChange={onCursorMarkersChange}
             onRangeModeChange={onRangeModeChange}
             onRangeChange={onRangeChange}
             onClearRange={onClearRange}

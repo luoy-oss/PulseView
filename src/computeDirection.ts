@@ -1,4 +1,5 @@
-import type { AbChannel, AbFreqPoint, DirectionAnalysis, DirectionLevel, DirectionMapping } from './types';
+import type { AbChannel, AbFreqPoint, DirectionAnalysis, DirectionLevel, DirectionMapping, EdgeBase, FreqMode, FreqPoint } from './types';
+import { computeFreqFromTransitions } from './compute.ts';
 
 export const DIRECTION_PRESETS: DirectionMapping[] = [
   { preset: 'idle-high-forward-low', idleLevel: 1, forwardLevel: 0 },
@@ -29,10 +30,14 @@ export function computeDirectionAnalysis(
   direction: AbChannel,
   mapping: DirectionMapping,
   pulseLevel: DirectionLevel = 1,
+  freqMode: FreqMode = 'rising',
+  dutyCorrect = false,
+  edgeBase: EdgeBase = 'rising',
 ): DirectionAnalysis {
   const pulseEdges = edges(pulse, pulseLevel);
   const points: AbFreqPoint[] = [];
   const periods: number[] = [];
+  const delays: number[] = [];
   let forwardCycles = 0;
   let reverseCycles = 0;
   let unknownCycles = 0;
@@ -51,6 +56,15 @@ export function computeDirectionAnalysis(
       direction: sign > 0 ? 'forward' : 'reverse',
     });
     periods.push(period);
+    const directionAtStart = latestLevel(direction, pulseEdges[i - 1]);
+    if (directionAtStart !== null) {
+      let lastDirectionChange = pulseEdges[i - 1];
+      for (let j = 1; j < direction.transitions.length; j++) {
+        if (direction.transitions[j] > pulseEdges[i - 1]) break;
+        lastDirectionChange = direction.transitions[j];
+      }
+      delays.push(Math.max(0, pulseEdges[i - 1] - lastDirectionChange));
+    }
     if (sign > 0) forwardCycles++;
     else reverseCycles++;
   }
@@ -61,7 +75,36 @@ export function computeDirectionAnalysis(
     reverseCycles,
     unknownCycles,
     meanPeriod: periods.length ? periods.reduce((sum, value) => sum + value, 0) / periods.length : 0,
+    meanDelay: delays.length ? delays.reduce((sum, value) => sum + value, 0) / delays.length : 0,
   };
+}
+
+export function computeDirectionPulsePoints(
+  pulse: AbChannel,
+  direction: AbChannel,
+  mapping: DirectionMapping,
+  pulseLevel: DirectionLevel,
+  freqMode: FreqMode,
+  dutyCorrect: boolean,
+  edgeBase: EdgeBase,
+): FreqPoint[] {
+  const levels = new Int8Array(pulse.levels.length);
+  for (let i = 0; i < levels.length; i++) levels[i] = pulse.levels[i] === pulseLevel ? 1 : 0;
+  const points = computeFreqFromTransitions(pulse.transitions, levels, 'vcd', freqMode, dutyCorrect, edgeBase, false, 0, 0);
+  const rises = edges(pulse, pulseLevel);
+  return points.map((point, pointIndex) => {
+    // computeFreqFromTransitions emits rising points for the first pulse and
+    // then for each measured interval's end. Keep the sign tied to the
+    // interval's actual starting edge, including the first boundary point.
+    const start = freqMode === 'rising'
+      ? rises[Math.min(pointIndex, Math.max(0, rises.length - 2))] ?? point.time
+      : freqMode === 'falling'
+        ? point.time - (point.period ?? 0) / 2
+        : point.time;
+    const level = latestLevel(direction, start);
+    const sign = level === mapping.forwardLevel ? 1 : -1;
+    return { ...point, freq: sign * point.freq };
+  });
 }
 
 export function scorePulseChannel(channel: AbChannel): number {

@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
-import { AppState, AccelSegment, DefaultLevel, EdgeBase, FreqMode, PulseLevel, SidebarStatVisibility } from '../types';
+import { AppState, AccelSegment, CursorMarker, DefaultLevel, EdgeBase, FreqMode, PulseLevel, SidebarStatVisibility } from '../types';
 import { Header } from './Header';
 import { Sidebar } from './Sidebar';
 import { FreqChart } from './FreqChart';
@@ -23,6 +23,8 @@ interface Props {
   onLowGapAnnotationChange: (enabled: boolean, threshold: number) => void;
   onAccelDetect: (segs: AccelSegment[]) => void;
   onCursorChange: (which: 'A' | 'B', idx: number | null) => void;
+  onCursorMarkersChange: (markers: CursorMarker[], activeCursorId: string) => void;
+  onCursorPairChange: (pair: [string, string]) => void;
   onRangeModeChange: (mode: boolean) => void;
   onRangeChange: (
     start: number | null,
@@ -51,6 +53,8 @@ export function AppShell({
   onLowGapAnnotationChange,
   onAccelDetect,
   onCursorChange,
+  onCursorMarkersChange,
+  onCursorPairChange,
   onRangeModeChange,
   onRangeChange,
   onClearRange,
@@ -162,6 +166,9 @@ export function AppShell({
               onToggleChart={onToggleChart}
               onViewRangeChange={setViewRange}
               onCursorChange={onCursorChange}
+              cursorMarkers={state.cursorMarkers}
+              activeCursorId={state.activeCursorId}
+              onCursorMarkersChange={onCursorMarkersChange}
               onRangeModeChange={onRangeModeChange}
               onRangeChange={onRangeChange}
               onClearRange={onClearRange}
@@ -183,6 +190,9 @@ export function AppShell({
               viewRange={viewRange}
               onViewRangeChange={setViewRange}
               onCursorChange={onCursorChange}
+              cursorMarkers={state.cursorMarkers}
+              activeCursorId={state.activeCursorId}
+              onCursorMarkersChange={onCursorMarkersChange}
               onRangeModeChange={onRangeModeChange}
               onRangeChange={onRangeChange}
               onClearRange={onClearRange}
@@ -199,6 +209,11 @@ export function AppShell({
               risingEdges={state.risingEdges}
               onAccelDetect={onAccelDetect}
               onCursorChange={onCursorChange}
+              cursorMarkers={state.cursorMarkers}
+              activeCursorId={state.activeCursorId}
+              onCursorMarkersChange={onCursorMarkersChange}
+              cursorPair={state.cursorPair}
+              onCursorPairChange={onCursorPairChange}
               theme={theme}
           />
         </div>
