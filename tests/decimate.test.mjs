@@ -10,6 +10,11 @@ assert.equal(constantVisible.length, 2, 'constant screen runs should have two en
 assert.equal(constantVisible[0].x, constant[0].time);
 assert.equal(constantVisible.at(-1).x, constant.at(-1).time);
 
+const outsideRangeVisible = buildVisibleData(constant, { min: 200, max: 300 }, 1200);
+assert.equal(outsideRangeVisible.length, 2, 'an invalid viewport falls back to source bounds');
+assert.equal(outsideRangeVisible[0].x, constant[0].time);
+assert.equal(outsideRangeVisible.at(-1).x, constant.at(-1).time);
+
 const changing = Array.from({ length: 100_000 }, (_, i) => ({
   time: i / 1000,
   freq: i % 2 === 0 ? 100_000 : 200_000,

@@ -378,6 +378,12 @@ export function FreqChart({
           },
         },
         zoom: {
+          // Keep the zoomed x range inside the source data domain. Without
+          // this limit, wheel zooming can create an empty viewport and Chart.js
+          // may run nearest-hit detection against an incomplete point set.
+          limits: {
+            x: { min: 'original', max: 'original' },
+          },
           pan: {
             enabled: !rangeMode,
             mode: 'x',

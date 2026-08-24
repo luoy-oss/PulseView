@@ -239,6 +239,11 @@ export function DerivSeriesChart({
           },
         },
         zoom: {
+          // Do not allow an empty x viewport: Chart.js nearest interaction can
+          // otherwise inspect a point element while its options are unset.
+          limits: {
+            x: { min: 'original', max: 'original' },
+          },
           pan: {
             enabled: true,
             mode: 'x',
