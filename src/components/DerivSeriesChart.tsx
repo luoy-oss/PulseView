@@ -10,7 +10,7 @@ import zoomPlugin from 'chartjs-plugin-zoom';
 import annotationPlugin from 'chartjs-plugin-annotation';
 import { DerivPoint } from '../types';
 import { fmtTime, fmtTimeShort, fmtRateShort } from '../utils';
-import { buildVisibleSeries, ViewRange } from '../decimate';
+import { buildVisibleSeries, getMinimumTimeRange, normalizeViewRange, ViewRange } from '../decimate';
 import { ThemeId, THEME_COLORS } from '../theme';
 
 Chart.register(zoomPlugin, annotationPlugin);
@@ -66,9 +66,11 @@ export function DerivSeriesChart({
     if (onResetZoomReady) onResetZoomReady(doReset);
   }, [onResetZoomReady, onViewRangeChange]);
 
+  const safeViewRange = useMemo(() => normalizeViewRange(pts, viewRange), [pts, viewRange]);
+  const minTimeRange = useMemo(() => getMinimumTimeRange(pts), [pts]);
   const visibleData = useMemo(
-    () => buildVisibleSeries(pts, viewRange, chartWidth),
-    [pts, viewRange, chartWidth]
+    () => buildVisibleSeries(pts, safeViewRange, chartWidth),
+    [pts, safeViewRange, chartWidth]
   );
 
   const data: ChartData<'scatter', ScatterDataPoint[]> = useMemo(
@@ -184,7 +186,7 @@ export function DerivSeriesChart({
       scales: {
         x: {
           type: 'linear',
-          ...(viewRange ? { min: viewRange.min, max: viewRange.max } : {}),
+          ...(safeViewRange ? { min: safeViewRange.min, max: safeViewRange.max } : {}),
           title: {
             display: true,
             text: '时间',
@@ -239,6 +241,11 @@ export function DerivSeriesChart({
           },
         },
         zoom: {
+          // Do not allow an empty x viewport: Chart.js nearest interaction can
+          // otherwise inspect a point element while its options are unset.
+          limits: {
+            x: { min: 'original', max: 'original', ...(minTimeRange > 0 ? { minRange: minTimeRange } : {}) },
+          },
           pan: {
             enabled: true,
             mode: 'x',
@@ -257,7 +264,7 @@ export function DerivSeriesChart({
       },
       onClick: handleChartClick as (evt: unknown) => void,
     }),
-    [viewRange, handleChartClick, buildAnnotations, formatValue, yTitle, colors, syncViewRange]
+    [safeViewRange, handleChartClick, buildAnnotations, formatValue, yTitle, colors, syncViewRange, minTimeRange]
   );
 
   // Update annotations when deps change
