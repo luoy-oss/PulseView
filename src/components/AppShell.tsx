@@ -94,6 +94,7 @@ export function AppShell({
     [
       state.transTimes,
       state.transLevels,
+      state.lowGapAnnotationEnabled,
       state.lowGapThreshold,
       state.lowGapToleranceEnabled,
       state.lowGapTolerancePct,
