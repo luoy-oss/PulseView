@@ -7,6 +7,11 @@ export interface XYPoint {
   dutyCycle?: number;
 }
 
+export interface VisibleEnvelope {
+  lower: XYPoint[];
+  upper: XYPoint[];
+}
+
 export interface ViewRange {
   min: number;
   max: number;
@@ -213,6 +218,59 @@ function buildVisibleCore<T extends { time: number }>(
   ]);
 }
 
+function buildEnvelopeCore<T extends { time: number }>(
+  pts: T[],
+  getValue: (p: T) => number,
+  toPoint: (p: T) => XYPoint,
+  viewRange: ViewRange | null,
+  widthPx: number
+): VisibleEnvelope {
+  if (pts.length === 0) return { lower: [], upper: [] };
+
+  let lo = 0;
+  let hi = pts.length - 1;
+  if (viewRange) {
+    lo = lowerBoundTime(pts, viewRange.min);
+    hi = upperBoundTime(pts, viewRange.max);
+    if (lo > hi) {
+      lo = 0;
+      hi = pts.length - 1;
+    }
+  }
+
+  const count = hi - lo + 1;
+  const width = Math.max(1, Math.round(widthPx));
+  const maxRender = Math.max(width * 2, 2000);
+  if (count <= maxRender) {
+    const raw = new Array<XYPoint>(count);
+    for (let i = 0; i < count; i++) raw[i] = toPoint(pts[lo + i]);
+    return { lower: raw, upper: raw };
+  }
+
+  const t0 = pts[lo].time;
+  const t1 = pts[hi].time;
+  const span = t1 - t0;
+  if (span <= 0) {
+    const point = toPoint(pts[lo]);
+    return { lower: [point], upper: [point] };
+  }
+
+  const index = getExtremumIndex(pts, 'envelope', getValue);
+  const lower: XYPoint[] = [];
+  const upper: XYPoint[] = [];
+  for (let bucket = 0; bucket < width; bucket++) {
+    const bucketStart = t0 + (span * bucket) / width;
+    const bucketEnd = bucket === width - 1 ? t1 : t0 + (span * (bucket + 1)) / width;
+    const bucketLo = Math.max(lo, lowerBoundTime(pts, bucketStart));
+    const bucketHi = Math.min(hi, upperBoundTime(pts, bucketEnd));
+    if (bucketLo > bucketHi) continue;
+    const [minIndex, maxIndex] = queryExtrema(index, bucketLo, bucketHi);
+    lower.push(toPoint(pts[minIndex]));
+    upper.push(toPoint(pts[maxIndex]));
+  }
+  return { lower, upper };
+}
+
 export function buildVisibleData(
   pts: FreqPoint[],
   viewRange: ViewRange | null,
@@ -227,4 +285,12 @@ export function buildVisibleSeries(
   widthPx: number
 ): XYPoint[] {
   return buildVisibleCore(pts, 'deriv', (p) => p.value, toDerivXY, viewRange, widthPx);
+}
+
+export function buildVisibleEnvelope(
+  pts: FreqPoint[],
+  viewRange: ViewRange | null,
+  widthPx: number
+): VisibleEnvelope {
+  return buildEnvelopeCore(pts, (p) => p.freq, toFreqXY, viewRange, widthPx);
 }

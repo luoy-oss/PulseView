@@ -10,7 +10,7 @@ import zoomPlugin from 'chartjs-plugin-zoom';
 import annotationPlugin from 'chartjs-plugin-annotation';
 import { CursorMarker, FreqPoint, AccelSegment, FreqMode, LowGapMarker } from '../types';
 import { fmtTime, fmtTimeShort, fmtFreq, fmtFreqShort } from '../utils';
-import { buildVisibleData, ViewRange } from '../decimate';
+import { buildVisibleData, buildVisibleEnvelope, ViewRange } from '../decimate';
 import { ThemeId, THEME_COLORS } from '../theme';
 
 Chart.register(zoomPlugin, annotationPlugin);
@@ -131,12 +131,21 @@ export function FreqChart({
     () => buildVisibleData(freqPts, viewRange, chartWidth),
     [freqPts, viewRange, chartWidth]
   );
+  const visibleEnvelope = useMemo(
+    () => buildVisibleEnvelope(freqPts, viewRange, chartWidth),
+    [freqPts, viewRange, chartWidth]
+  );
 
   const data: ChartData<'scatter', ScatterDataPoint[]> = useMemo(
     () => ({
-      datasets: [{ ...DATASET_STYLE, borderColor: `${colors.accent}d9`, backgroundColor: `${colors.accent}0f`, pointHoverBackgroundColor: colors.accent, pointHoverBorderColor: colors.text, data: visibleData }],
+      datasets: visibleEnvelope.lower === visibleEnvelope.upper
+        ? [{ ...DATASET_STYLE, borderColor: `${colors.accent}d9`, backgroundColor: `${colors.accent}0f`, pointHoverBackgroundColor: colors.accent, pointHoverBorderColor: colors.text, data: visibleData }]
+        : [
+            { ...DATASET_STYLE, fill: false, borderColor: `${colors.accent}70`, data: visibleEnvelope.lower },
+            { ...DATASET_STYLE, fill: '-1', borderColor: `${colors.accent}d9`, backgroundColor: `${colors.accent}0f`, pointHoverBackgroundColor: colors.accent, pointHoverBorderColor: colors.text, data: visibleEnvelope.upper },
+          ],
     }),
-    [visibleData, colors]
+    [visibleData, visibleEnvelope, colors]
   );
 
   const buildAnnotations = useCallback(() => {
