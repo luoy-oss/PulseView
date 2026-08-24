@@ -1,0 +1,76 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Build and publish release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Read and validate release version
+        id: version
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          VERSION="$(node --print "require('./package.json').version")"
+          TAG="v${VERSION}"
+
+          if [ "${EVENT_NAME}" = "push" ] && [ "${REF_NAME}" != "${TAG}" ]; then
+            echo "Tag ${REF_NAME} does not match package.json version ${VERSION}." >&2
+            exit 1
+          fi
+
+          echo "version=${VERSION}" >> "${GITHUB_OUTPUT}"
+          echo "tag=${TAG}" >> "${GITHUB_OUTPUT}"
+          echo "Release version: ${VERSION}"
+
+      - name: Run tests
+        run: npm test
+
+      - name: Build production bundle
+        run: npm run build
+
+      - name: Package build artifact
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          ARCHIVE="pulseview-v${VERSION}-dist.zip"
+          zip -r "${ARCHIVE}" dist
+          echo "archive=${ARCHIVE}" >> "${GITHUB_OUTPUT}"
+        id: artifact
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+          VERSION: ${{ steps.version.outputs.version }}
+          ARCHIVE: ${{ steps.artifact.outputs.archive }}
+        run: |
+          gh release create "${TAG}" "${ARCHIVE}" \
+            --title "PulseView v${VERSION}" \
+            --generate-notes
