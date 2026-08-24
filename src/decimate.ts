@@ -19,55 +19,21 @@ export interface ViewRange {
   max: number;
 }
 
-/** Returns a zoom range that always contains source data. */
-export function normalizeViewRange<T extends { time: number }>(
+export function hasPointsInRange<T extends { time: number }>(
   pts: T[],
-  viewRange: ViewRange | null
-): ViewRange | null {
-  if (pts.length < 2 || !viewRange) return null;
-
-  const domainMin = pts[0].time;
-  const domainMax = pts[pts.length - 1].time;
-  const domainSpan = domainMax - domainMin;
-  if (!(domainSpan > 0)) return null;
-
-  const requestedMin = Math.min(viewRange.min, viewRange.max);
-  const requestedMax = Math.max(viewRange.min, viewRange.max);
-  if (requestedMax < domainMin || requestedMin > domainMax) return null;
-
-  let min = Math.max(domainMin, requestedMin);
-  let max = Math.min(domainMax, requestedMax);
-  let minimumRange = domainSpan;
-  for (let i = 1; i < pts.length; i++) {
-    const gap = pts[i].time - pts[i - 1].time;
-    if (gap > 0 && gap < minimumRange) minimumRange = gap;
+  range: ViewRange
+): boolean {
+  if (pts.length === 0) return false;
+  const min = Math.min(range.min, range.max);
+  const max = Math.max(range.min, range.max);
+  let lo = 0;
+  let hi = pts.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (pts[mid].time < min) lo = mid + 1;
+    else hi = mid;
   }
-
-  if (max - min < minimumRange) {
-    const center = (min + max) / 2;
-    min = center - minimumRange / 2;
-    max = center + minimumRange / 2;
-    if (min < domainMin) {
-      min = domainMin;
-      max = Math.min(domainMax, min + minimumRange);
-    } else if (max > domainMax) {
-      max = domainMax;
-      min = Math.max(domainMin, max - minimumRange);
-    }
-  }
-  return { min, max };
-}
-
-export function getMinimumTimeRange<T extends { time: number }>(pts: T[]): number {
-  if (pts.length < 2) return 0;
-  const span = pts[pts.length - 1].time - pts[0].time;
-  if (!(span > 0)) return 0;
-  let minimumRange = span;
-  for (let i = 1; i < pts.length; i++) {
-    const gap = pts[i].time - pts[i - 1].time;
-    if (gap > 0 && gap < minimumRange) minimumRange = gap;
-  }
-  return minimumRange;
+  return lo < pts.length && pts[lo].time <= max;
 }
 
 // 第一个 time >= t 的下标

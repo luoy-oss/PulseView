@@ -10,7 +10,7 @@ import zoomPlugin from 'chartjs-plugin-zoom';
 import annotationPlugin from 'chartjs-plugin-annotation';
 import { CursorMarker, FreqPoint, AccelSegment, FreqMode, LowGapMarker } from '../types';
 import { fmtTime, fmtTimeShort, fmtFreq, fmtFreqShort } from '../utils';
-import { buildVisibleRepresentative, getMinimumTimeRange, normalizeViewRange, RepresentativeMode, ViewRange } from '../decimate';
+import { buildVisibleRepresentative, hasPointsInRange, RepresentativeMode, ViewRange } from '../decimate';
 import { ThemeId, THEME_COLORS } from '../theme';
 
 Chart.register(zoomPlugin, annotationPlugin);
@@ -96,9 +96,14 @@ export function FreqChart({
   const syncViewRange = useCallback((chart: Chart<'scatter', ScatterDataPoint[]>) => {
     const x = chart.scales.x;
     if (typeof x.min === 'number' && typeof x.max === 'number') {
+      if (!hasPointsInRange(freqPts, { min: x.min, max: x.max })) {
+        chart.resetZoom();
+        onViewRangeChange(null);
+        return;
+      }
       onViewRangeChange({ min: x.min, max: x.max });
     }
-  }, [onViewRangeChange]);
+  }, [freqPts, onViewRangeChange]);
 
   // 数据变化（重新载入文件 / 切换频率模式）时重置可见范围
   useEffect(() => {
@@ -128,11 +133,9 @@ export function FreqChart({
   }, []);
 
   // 当前可见窗口的渲染数据：超过阈值时按像素列 min/max 抽稀
-  const safeViewRange = useMemo(() => normalizeViewRange(freqPts, viewRange), [freqPts, viewRange]);
-  const minTimeRange = useMemo(() => getMinimumTimeRange(freqPts), [freqPts]);
   const visibleData = useMemo(
-    () => buildVisibleRepresentative(freqPts, safeViewRange, chartWidth, denseRenderMode),
-    [freqPts, safeViewRange, chartWidth, denseRenderMode]
+    () => buildVisibleRepresentative(freqPts, viewRange, chartWidth, denseRenderMode),
+    [freqPts, viewRange, chartWidth, denseRenderMode]
   );
 
   const data: ChartData<'scatter', ScatterDataPoint[]> = useMemo(
@@ -298,7 +301,7 @@ export function FreqChart({
       scales: {
         x: {
           type: 'linear',
-          ...(safeViewRange ? { min: safeViewRange.min, max: safeViewRange.max } : {}),
+          ...(viewRange ? { min: viewRange.min, max: viewRange.max } : {}),
           title: {
             display: true,
             text: '时间',
@@ -383,9 +386,6 @@ export function FreqChart({
           // Keep the zoomed x range inside the source data domain. Without
           // this limit, wheel zooming can create an empty viewport and Chart.js
           // may run nearest-hit detection against an incomplete point set.
-          limits: {
-            x: { min: 'original', max: 'original', ...(minTimeRange > 0 ? { minRange: minTimeRange } : {}) },
-          },
           pan: {
             enabled: !rangeMode,
             mode: 'x',
@@ -404,7 +404,7 @@ export function FreqChart({
       },
       onClick: handleChartClick as (evt: unknown) => void,
     }),
-    [safeViewRange, rangeMode, handleChartClick, buildAnnotations, freqMode, colors, syncViewRange, minTimeRange]
+    [viewRange, rangeMode, handleChartClick, buildAnnotations, freqMode, colors, syncViewRange]
   );
 
   // Range drag handlers

@@ -10,7 +10,7 @@ import zoomPlugin from 'chartjs-plugin-zoom';
 import annotationPlugin from 'chartjs-plugin-annotation';
 import { DerivPoint } from '../types';
 import { fmtTime, fmtTimeShort, fmtRateShort } from '../utils';
-import { buildVisibleSeries, getMinimumTimeRange, normalizeViewRange, ViewRange } from '../decimate';
+import { buildVisibleSeries, hasPointsInRange, ViewRange } from '../decimate';
 import { ThemeId, THEME_COLORS } from '../theme';
 
 Chart.register(zoomPlugin, annotationPlugin);
@@ -53,9 +53,14 @@ export function DerivSeriesChart({
   const syncViewRange = useCallback((chart: Chart<'scatter', ScatterDataPoint[]>) => {
     const x = chart.scales.x;
     if (typeof x.min === 'number' && typeof x.max === 'number') {
+      if (!hasPointsInRange(pts, { min: x.min, max: x.max })) {
+        chart.resetZoom();
+        onViewRangeChange(null);
+        return;
+      }
       onViewRangeChange({ min: x.min, max: x.max });
     }
-  }, [onViewRangeChange]);
+  }, [onViewRangeChange, pts]);
 
   useEffect(() => {
     const doReset = () => {
@@ -66,11 +71,9 @@ export function DerivSeriesChart({
     if (onResetZoomReady) onResetZoomReady(doReset);
   }, [onResetZoomReady, onViewRangeChange]);
 
-  const safeViewRange = useMemo(() => normalizeViewRange(pts, viewRange), [pts, viewRange]);
-  const minTimeRange = useMemo(() => getMinimumTimeRange(pts), [pts]);
   const visibleData = useMemo(
-    () => buildVisibleSeries(pts, safeViewRange, chartWidth),
-    [pts, safeViewRange, chartWidth]
+    () => buildVisibleSeries(pts, viewRange, chartWidth),
+    [pts, viewRange, chartWidth]
   );
 
   const data: ChartData<'scatter', ScatterDataPoint[]> = useMemo(
@@ -186,7 +189,7 @@ export function DerivSeriesChart({
       scales: {
         x: {
           type: 'linear',
-          ...(safeViewRange ? { min: safeViewRange.min, max: safeViewRange.max } : {}),
+          ...(viewRange ? { min: viewRange.min, max: viewRange.max } : {}),
           title: {
             display: true,
             text: '时间',
@@ -243,9 +246,6 @@ export function DerivSeriesChart({
         zoom: {
           // Do not allow an empty x viewport: Chart.js nearest interaction can
           // otherwise inspect a point element while its options are unset.
-          limits: {
-            x: { min: 'original', max: 'original', ...(minTimeRange > 0 ? { minRange: minTimeRange } : {}) },
-          },
           pan: {
             enabled: true,
             mode: 'x',
@@ -264,7 +264,7 @@ export function DerivSeriesChart({
       },
       onClick: handleChartClick as (evt: unknown) => void,
     }),
-    [safeViewRange, handleChartClick, buildAnnotations, formatValue, yTitle, colors, syncViewRange, minTimeRange]
+    [viewRange, handleChartClick, buildAnnotations, formatValue, yTitle, colors, syncViewRange]
   );
 
   // Update annotations when deps change
