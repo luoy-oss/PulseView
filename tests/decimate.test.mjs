@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { buildVisibleData, buildVisibleEnvelope, buildVisibleRepresentative } from '../src/decimate.ts';
+import { buildVisibleData, buildVisibleEnvelope, buildVisibleRepresentative, getMinimumTimeRange, normalizeViewRange } from '../src/decimate.ts';
 
 const constant = Array.from({ length: 100_000 }, (_, i) => ({
   time: i / 1000,
@@ -14,6 +14,11 @@ const outsideRangeVisible = buildVisibleData(constant, { min: 200, max: 300 }, 1
 assert.equal(outsideRangeVisible.length, 2, 'an invalid viewport falls back to source bounds');
 assert.equal(outsideRangeVisible[0].x, constant[0].time);
 assert.equal(outsideRangeVisible.at(-1).x, constant.at(-1).time);
+
+const sparse = [{ time: 0, freq: 1 }, { time: 1, freq: 2 }, { time: 3, freq: 3 }];
+assert.equal(getMinimumTimeRange(sparse), 1);
+assert.deepEqual(normalizeViewRange(sparse, { min: 1.5, max: 1.5 }), { min: 1, max: 2 });
+assert.equal(normalizeViewRange([], { min: 0, max: 1 }), null);
 
 const changing = Array.from({ length: 100_000 }, (_, i) => ({
   time: i / 1000,

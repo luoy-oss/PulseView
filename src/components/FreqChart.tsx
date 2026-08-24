@@ -10,7 +10,7 @@ import zoomPlugin from 'chartjs-plugin-zoom';
 import annotationPlugin from 'chartjs-plugin-annotation';
 import { CursorMarker, FreqPoint, AccelSegment, FreqMode, LowGapMarker } from '../types';
 import { fmtTime, fmtTimeShort, fmtFreq, fmtFreqShort } from '../utils';
-import { buildVisibleRepresentative, RepresentativeMode, ViewRange } from '../decimate';
+import { buildVisibleRepresentative, getMinimumTimeRange, normalizeViewRange, RepresentativeMode, ViewRange } from '../decimate';
 import { ThemeId, THEME_COLORS } from '../theme';
 
 Chart.register(zoomPlugin, annotationPlugin);
@@ -128,9 +128,11 @@ export function FreqChart({
   }, []);
 
   // 当前可见窗口的渲染数据：超过阈值时按像素列 min/max 抽稀
+  const safeViewRange = useMemo(() => normalizeViewRange(freqPts, viewRange), [freqPts, viewRange]);
+  const minTimeRange = useMemo(() => getMinimumTimeRange(freqPts), [freqPts]);
   const visibleData = useMemo(
-    () => buildVisibleRepresentative(freqPts, viewRange, chartWidth, denseRenderMode),
-    [freqPts, viewRange, chartWidth, denseRenderMode]
+    () => buildVisibleRepresentative(freqPts, safeViewRange, chartWidth, denseRenderMode),
+    [freqPts, safeViewRange, chartWidth, denseRenderMode]
   );
 
   const data: ChartData<'scatter', ScatterDataPoint[]> = useMemo(
@@ -296,7 +298,7 @@ export function FreqChart({
       scales: {
         x: {
           type: 'linear',
-          ...(viewRange ? { min: viewRange.min, max: viewRange.max } : {}),
+          ...(safeViewRange ? { min: safeViewRange.min, max: safeViewRange.max } : {}),
           title: {
             display: true,
             text: '时间',
@@ -382,7 +384,7 @@ export function FreqChart({
           // this limit, wheel zooming can create an empty viewport and Chart.js
           // may run nearest-hit detection against an incomplete point set.
           limits: {
-            x: { min: 'original', max: 'original' },
+            x: { min: 'original', max: 'original', ...(minTimeRange > 0 ? { minRange: minTimeRange } : {}) },
           },
           pan: {
             enabled: !rangeMode,
@@ -402,7 +404,7 @@ export function FreqChart({
       },
       onClick: handleChartClick as (evt: unknown) => void,
     }),
-    [viewRange, rangeMode, handleChartClick, buildAnnotations, freqMode, colors, syncViewRange]
+    [safeViewRange, rangeMode, handleChartClick, buildAnnotations, freqMode, colors, syncViewRange, minTimeRange]
   );
 
   // Range drag handlers
