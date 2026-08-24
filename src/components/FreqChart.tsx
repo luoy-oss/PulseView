@@ -10,7 +10,7 @@ import zoomPlugin from 'chartjs-plugin-zoom';
 import annotationPlugin from 'chartjs-plugin-annotation';
 import { CursorMarker, FreqPoint, AccelSegment, FreqMode, LowGapMarker } from '../types';
 import { fmtTime, fmtTimeShort, fmtFreq, fmtFreqShort } from '../utils';
-import { buildVisibleData, buildVisibleEnvelope, ViewRange } from '../decimate';
+import { buildVisibleRepresentative, RepresentativeMode, ViewRange } from '../decimate';
 import { ThemeId, THEME_COLORS } from '../theme';
 
 Chart.register(zoomPlugin, annotationPlugin);
@@ -86,6 +86,7 @@ export function FreqChart({
   const colors = THEME_COLORS[theme];
   const chartRef = useRef<Chart<'scatter', ScatterDataPoint[]> | null>(null);
   const dragRef = useRef({ dragging: false, startX: 0 });
+  const [denseRenderMode, setDenseRenderMode] = useState<RepresentativeMode>('first');
 
   // 图表实际像素宽度，用于按像素列做 min/max 抽稀
   const [chartWidth, setChartWidth] = useState(1200);
@@ -128,24 +129,15 @@ export function FreqChart({
 
   // 当前可见窗口的渲染数据：超过阈值时按像素列 min/max 抽稀
   const visibleData = useMemo(
-    () => buildVisibleData(freqPts, viewRange, chartWidth),
-    [freqPts, viewRange, chartWidth]
-  );
-  const visibleEnvelope = useMemo(
-    () => buildVisibleEnvelope(freqPts, viewRange, chartWidth),
-    [freqPts, viewRange, chartWidth]
+    () => buildVisibleRepresentative(freqPts, viewRange, chartWidth, denseRenderMode),
+    [freqPts, viewRange, chartWidth, denseRenderMode]
   );
 
   const data: ChartData<'scatter', ScatterDataPoint[]> = useMemo(
     () => ({
-      datasets: visibleEnvelope.lower === visibleEnvelope.upper
-        ? [{ ...DATASET_STYLE, borderColor: `${colors.accent}d9`, backgroundColor: `${colors.accent}0f`, pointHoverBackgroundColor: colors.accent, pointHoverBorderColor: colors.text, data: visibleData }]
-        : [
-            { ...DATASET_STYLE, fill: false, borderColor: `${colors.accent}70`, data: visibleEnvelope.lower },
-            { ...DATASET_STYLE, fill: '-1', borderColor: `${colors.accent}d9`, backgroundColor: `${colors.accent}0f`, pointHoverBackgroundColor: colors.accent, pointHoverBorderColor: colors.text, data: visibleEnvelope.upper },
-          ],
+      datasets: [{ ...DATASET_STYLE, borderColor: `${colors.accent}d9`, backgroundColor: `${colors.accent}0f`, pointHoverBackgroundColor: colors.accent, pointHoverBorderColor: colors.text, data: visibleData }],
     }),
-    [visibleData, visibleEnvelope, colors]
+    [visibleData, colors]
   );
 
   const buildAnnotations = useCallback(() => {
@@ -503,6 +495,17 @@ export function FreqChart({
             )}
           </div>
           <div className="chart-toolbar-r">
+            <select
+              className="chart-render-mode"
+              value={denseRenderMode}
+              onChange={(event) => setDenseRenderMode(event.target.value as RepresentativeMode)}
+              title="仅在数据密度超过屏幕像素时改变显示方式；原始数据和计算不变"
+            >
+              <option value="center">中心真实点</option>
+              <option value="first">每列首点</option>
+              <option value="last">每列末点</option>
+              <option value="turns">转折真实点</option>
+            </select>
             {rangeStart !== null && rangeEnd !== null && (
               <>
                 <button className="btn btn-sm" onClick={onClearRange}>

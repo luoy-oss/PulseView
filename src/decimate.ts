@@ -12,6 +12,8 @@ export interface VisibleEnvelope {
   upper: XYPoint[];
 }
 
+export type RepresentativeMode = 'center' | 'first' | 'last' | 'turns';
+
 export interface ViewRange {
   min: number;
   max: number;
@@ -293,4 +295,59 @@ export function buildVisibleEnvelope(
   widthPx: number
 ): VisibleEnvelope {
   return buildEnvelopeCore(pts, (p) => p.freq, toFreqXY, viewRange, widthPx);
+}
+
+/** Selects one real source point per screen bucket, never synthesizing values. */
+export function buildVisibleRepresentative(
+  pts: FreqPoint[],
+  viewRange: ViewRange | null,
+  widthPx: number,
+  mode: RepresentativeMode
+): XYPoint[] {
+  if (pts.length === 0) return [];
+  let lo = 0;
+  let hi = pts.length - 1;
+  if (viewRange) {
+    lo = lowerBoundTime(pts, viewRange.min);
+    hi = upperBoundTime(pts, viewRange.max);
+    if (lo > hi) { lo = 0; hi = pts.length - 1; }
+  }
+  const count = hi - lo + 1;
+  const width = Math.max(1, Math.round(widthPx));
+  if (count <= Math.max(width * 2, 2000)) {
+    const raw = new Array<XYPoint>(count);
+    for (let i = 0; i < count; i++) raw[i] = toFreqXY(pts[lo + i]);
+    return raw;
+  }
+
+  const t0 = pts[lo].time;
+  const span = pts[hi].time - t0;
+  if (span <= 0) return [toFreqXY(pts[lo])];
+  const out: XYPoint[] = [];
+  let previousIndex = lo;
+  for (let bucket = 0; bucket < width; bucket++) {
+    const start = t0 + (span * bucket) / width;
+    const end = bucket === width - 1 ? pts[hi].time : t0 + (span * (bucket + 1)) / width;
+    const startIndex = Math.max(lo, lowerBoundTime(pts, start));
+    const endIndex = Math.min(hi, upperBoundTime(pts, end));
+    if (startIndex > endIndex) continue;
+    let selected = startIndex;
+    if (mode === 'center') selected = (startIndex + endIndex) >> 1;
+    else if (mode === 'last') selected = endIndex;
+    else if (mode === 'turns' && endIndex - startIndex >= 2) {
+      let bestScore = -1;
+      for (let i = startIndex; i <= endIndex; i++) {
+        const left = pts[Math.max(lo, i - 1)].freq;
+        const right = pts[Math.min(hi, i + 1)].freq;
+        const score = Math.abs(2 * pts[i].freq - left - right);
+        if (score > bestScore) { bestScore = score; selected = i; }
+      }
+    }
+    if (selected !== previousIndex || out.length === 0) {
+      out.push(toFreqXY(pts[selected]));
+      previousIndex = selected;
+    }
+  }
+  if (out.length === 0 || out[out.length - 1].x !== pts[hi].time) out.push(toFreqXY(pts[hi]));
+  return out;
 }

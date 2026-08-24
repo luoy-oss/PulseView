@@ -719,6 +719,16 @@ body {
   gap: 6px;
 }
 
+.chart-render-mode {
+  height: 28px;
+  padding: 0 7px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--bg-2);
+  color: var(--text-2);
+  font: 11px var(--fx);
+}
+
 .range-badge {
   display: inline-flex;
   align-items: center;

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { buildVisibleData, buildVisibleEnvelope } from '../src/decimate.ts';
+import { buildVisibleData, buildVisibleEnvelope, buildVisibleRepresentative } from '../src/decimate.ts';
 
 const constant = Array.from({ length: 100_000 }, (_, i) => ({
   time: i / 1000,
@@ -30,6 +30,17 @@ for (let i = 1; i < envelope.lower.length; i++) {
   assert.ok(envelope.lower[i].x >= envelope.lower[i - 1].x, 'lower envelope remains time ordered');
   assert.ok(envelope.upper[i].x >= envelope.upper[i - 1].x, 'upper envelope remains time ordered');
   assert.ok(envelope.lower[i].y <= envelope.upper[i].y, 'each column preserves true min/max bounds');
+}
+
+for (const mode of ['center', 'first', 'last', 'turns']) {
+  const representative = buildVisibleRepresentative(smallVariation, null, 1200, mode);
+  assert.ok(representative.length <= 1201, `${mode} keeps one real point per pixel column`);
+  for (let i = 1; i < representative.length; i++) {
+    assert.ok(representative[i].x >= representative[i - 1].x, `${mode} remains time ordered`);
+  }
+  for (const point of representative) {
+    assert.ok(smallVariation.some((source) => source.time === point.x && source.freq === point.y), `${mode} only selects real source points`);
+  }
 }
 
 console.log('decimation display tests passed');
