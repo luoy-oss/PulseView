@@ -103,6 +103,14 @@ function parseCsvNumber(value: string): number {
   return /^[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?$/.test(c) ? parseFloat(c) : NaN;
 }
 
+function parseSamplingRate(line: string): number | null {
+  const match = line.match(/Sample rate:\s*([0-9.]+)\s*([kMG])?Hz/i);
+  if (!match) return null;
+  const base = parseFloat(match[1]);
+  const unit = match[2]?.toUpperCase();
+  return unit === 'K' ? base * 1e3 : unit === 'M' ? base * 1e6 : unit === 'G' ? base * 1e9 : base;
+}
+
 function parseChannelRows(text: string): { name: string; index: number }[] {
   for (const rawLine of text.split(/\r?\n/).slice(0, 100)) {
     const parts = rawLine.split(',');
@@ -132,17 +140,12 @@ function parseCsvChannels(text: string): { channels: SaleaeChannel[] } {
     const line = rawLine.trim();
     if (!line) continue;
     if (line.startsWith(';')) {
-      const m = line.match(/Sample rate:\s*([0-9.]+)\s*([kMG])?Hz/i);
-      if (m) {
-        const base = parseFloat(m[1]);
-        const unit = m[2]?.toUpperCase();
-        samplingRate = unit === 'k' ? base * 1e3 : unit === 'M' ? base * 1e6 : unit === 'G' ? base * 1e9 : base;
-      }
+      samplingRate = parseSamplingRate(line) ?? samplingRate;
       continue;
     }
     const parts = line.split(',');
     if (timeIndex < 0) {
-      const headerTime = parts.findIndex((part) => /^Time\s*(?:\(s\)|\[s\])\s*$/i.test(part.trim()));
+      const headerTime = parts.findIndex((part) => /^Time\s*(?:\(s\)|\[s\])?\s*$/i.test(part.trim()));
       if (headerTime < 0) continue;
       timeIndex = headerTime;
       continue;
@@ -151,7 +154,10 @@ function parseCsvChannels(text: string): { channels: SaleaeChannel[] } {
     if (!Number.isFinite(time)) continue;
     for (const channel of channels) {
       const level = parseCsvNumber(parts[channel.index] ?? '');
-      if (level !== 0 && level !== 1) continue;
+      if (level !== 0 && level !== 1) {
+        channel.prevLevel = null;
+        continue;
+      }
       channel.sampleCount++;
       if (channel.prevLevel === level) continue;
       channel.prevLevel = level;
@@ -193,13 +199,7 @@ function parseLegacyTransitionsCsv(text: string): {
     if (!line) continue;
     // 注释行：";"（sigrok 头部，含采样率声明）、"#" 等
     if (line.startsWith(';')) {
-      const m = line.match(/Sample rate:\s*([0-9.]+)\s*([kMG])?Hz/i);
-      if (m) {
-        const base = parseFloat(m[1]);
-        const unit = m[2]?.toUpperCase();
-        samplingRate =
-          unit === 'k' ? base * 1e3 : unit === 'M' ? base * 1e6 : unit === 'G' ? base * 1e9 : base;
-      }
+      samplingRate = parseSamplingRate(line) ?? samplingRate;
       continue;
     }
     if (line.startsWith('#')) continue;

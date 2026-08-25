@@ -18,4 +18,29 @@ assert.deepEqual([...result.transTimes], [0, 0.1, 0.3, 0.4]);
 assert.deepEqual([...result.transLevels], [0, 1, 0, 1]);
 assert.equal(result.samplingRate, 20e6);
 
+const legacyCsv = [
+  'Time,Channel 0',
+  '0,0',
+  '0.1,1',
+  '0.2,0',
+  '0.3,1',
+].join('\n');
+const legacyResult = parseSaleaeFile(new TextEncoder().encode(legacyCsv));
+assert.deepEqual([...legacyResult.transTimes], [0, 0.1, 0.2, 0.3]);
+
+const missingSampleCsv = [
+  '; Sample rate: 2 kHz',
+  'Time(s),Channel 0',
+  '0,0',
+  '0.1,',
+  '0.2,1',
+  '0.3,0',
+].join('\n');
+const missingSampleResult = parseSaleaeFile(new TextEncoder().encode(missingSampleCsv));
+assert.deepEqual([...missingSampleResult.transTimes], [0, 0.2, 0.3]);
+assert.equal(missingSampleResult.samplingRate, 2e3);
+
+const megaRateResult = parseSaleaeFile(new TextEncoder().encode(csv.replace('20 MHz', '3 MHz')));
+assert.equal(megaRateResult.samplingRate, 3e6);
+
 console.log('Saleae multi-channel CSV tests passed');
