@@ -60,7 +60,6 @@ const initialState: AppState = {
   showDerivs: false,
   showFreqChart: true,
   showAccelChart: false,
-  showJerkChart: false,
 };
 
 const defaultSidebarStats: SidebarStatVisibility = {
@@ -552,14 +551,13 @@ export function App() {
   const toggleDerivView = useCallback(() => {
     setState((prev) => {
       const anyVisible =
-        prev.showFreqChart || prev.showAccelChart || prev.showJerkChart;
+        prev.showFreqChart || prev.showAccelChart;
       if (!prev.showDerivs || !anyVisible) {
         return {
           ...prev,
           showDerivs: true,
           showFreqChart: true,
           showAccelChart: true,
-          showJerkChart: true,
         };
       }
       return {
@@ -567,19 +565,17 @@ export function App() {
         showDerivs: false,
         showFreqChart: true,
         showAccelChart: false,
-        showJerkChart: false,
       };
     });
   }, []);
 
-  const toggleChartVisible = useCallback((key: 'freq' | 'accel' | 'jerk') => {
+  const toggleChartVisible = useCallback((key: 'freq' | 'accel') => {
     setState((prev) => ({
       ...prev,
       showFreqChart:
         key === 'freq' ? !prev.showFreqChart : prev.showFreqChart,
       showAccelChart:
         key === 'accel' ? !prev.showAccelChart : prev.showAccelChart,
-      showJerkChart: key === 'jerk' ? !prev.showJerkChart : prev.showJerkChart,
     }));
   }, []);
 

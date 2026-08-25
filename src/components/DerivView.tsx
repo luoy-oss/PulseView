@@ -3,11 +3,11 @@ import { CursorMarker, FreqPoint, AccelSegment, FreqMode, LowGapMarker } from '.
 import { FreqChart } from './FreqChart';
 import { DerivSeriesChart } from './DerivSeriesChart';
 import { computeDerivatives } from '../compute';
-import { fmtRate, fmtJerk } from '../utils';
+import { fmtRate } from '../utils';
 import { ViewRange } from '../decimate';
 import { ThemeId, THEME_COLORS } from '../theme';
 
-export type DerivChartKey = 'freq' | 'accel' | 'jerk';
+export type DerivChartKey = 'freq' | 'accel';
 
 interface Props {
   freqPts: FreqPoint[];
@@ -22,7 +22,6 @@ interface Props {
   lowGapMarkers?: LowGapMarker[];
   showFreqChart: boolean;
   showAccelChart: boolean;
-  showJerkChart: boolean;
   viewRange: ViewRange | null;
   onToggleChart: (key: DerivChartKey) => void;
   onViewRangeChange: (r: ViewRange | null) => void;
@@ -42,7 +41,7 @@ interface Props {
   theme: ThemeId;
 }
 
-// 导数视图：垂直堆叠显示频率 / 加速度 / 加加速度三个图，
+// 导数视图：垂直堆叠显示频率与加速度两个图，
 // 共享时间轴缩放、平移与光标；每张图可单独关闭。
 export function DerivView({
   freqPts,
@@ -57,7 +56,6 @@ export function DerivView({
   lowGapMarkers = [],
   showFreqChart,
   showAccelChart,
-  showJerkChart,
   viewRange,
   onToggleChart,
   onViewRangeChange,
@@ -72,8 +70,8 @@ export function DerivView({
   theme,
 }: Props) {
   const colors = THEME_COLORS[theme];
-  // 由频率-时间曲线派生的加速度 / 加加速度曲线（点数与频率点一一对应）
-  const { accel, jerk } = useMemo(
+  // 由频率-时间曲线派生的加速度曲线。
+  const accel = useMemo(
     () => computeDerivatives(allFreqPts),
     [allFreqPts]
   );
@@ -99,10 +97,6 @@ export function DerivView({
     () => registerReset('accel'),
     [registerReset]
   );
-  const registerJerkReset = useMemo(
-    () => registerReset('jerk'),
-    [registerReset]
-  );
 
   useEffect(() => {
     if (!resetZoomRef) return;
@@ -112,7 +106,7 @@ export function DerivView({
     };
   }, [resetZoomRef, onViewRangeChange]);
 
-  const anyVisible = showFreqChart || showAccelChart || showJerkChart;
+  const anyVisible = showFreqChart || showAccelChart;
 
   return (
     <div className="deriv-view">
@@ -184,37 +178,6 @@ export function DerivView({
             cursorB={cursorB}
             onCursorChange={onCursorChange}
             formatValue={fmtRate}
-            theme={theme}
-          />
-        </div>
-      )}
-
-      {showJerkChart && (
-        <div className="deriv-panel">
-          <div className="deriv-panel-head">
-            <span className="deriv-title">
-              <span className="deriv-dot jerk" />
-              加加速度（变化率的变化率）
-            </span>
-            <button
-              className="deriv-close"
-              title="关闭加加速度图"
-              onClick={() => onToggleChart('jerk')}
-            >
-              ×
-            </button>
-          </div>
-          <DerivSeriesChart
-            pts={jerk}
-            color={colors.teal}
-            yTitle="加加速度"
-            viewRange={viewRange}
-            onViewRangeChange={onViewRangeChange}
-            onResetZoomReady={registerJerkReset}
-            cursorA={cursorA}
-            cursorB={cursorB}
-            onCursorChange={onCursorChange}
-            formatValue={fmtJerk}
             theme={theme}
           />
         </div>

@@ -44,14 +44,6 @@ export function fmtRateShort(r: number): string {
   return r.toFixed(2);
 }
 
-export function fmtJerk(j: number): string {
-  const aj = Math.abs(j);
-  if (aj >= 1e9) return (j / 1e9).toPrecision(3) + ' GHz/s²';
-  if (aj >= 1e6) return (j / 1e6).toPrecision(3) + ' MHz/s²';
-  if (aj >= 1e3) return (j / 1e3).toPrecision(3) + ' kHz/s²';
-  return j.toPrecision(3) + ' Hz/s²';
-}
-
 export function clamp(v: number, lo: number, hi: number): number {
   return Math.max(lo, Math.min(hi, v));
 }

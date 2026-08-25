@@ -52,7 +52,6 @@ export function AbAnalysisView({ channels, fileName, samplingRate, initialMode =
   const [showDerivs, setShowDerivs] = useState(false);
   const [showFreqChart, setShowFreqChart] = useState(true);
   const [showAccelChart, setShowAccelChart] = useState(false);
-  const [showJerkChart, setShowJerkChart] = useState(false);
   const resetZoomRef = useRef<() => void>(() => {});
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -124,7 +123,6 @@ export function AbAnalysisView({ channels, fileName, samplingRate, initialMode =
   const toggleChart = useCallback((key: DerivChartKey) => {
     if (key === 'freq') setShowFreqChart((value) => !value);
     if (key === 'accel') setShowAccelChart((value) => !value);
-    if (key === 'jerk') setShowJerkChart((value) => !value);
   }, []);
 
   const toggleDerivView = useCallback(() => {
@@ -133,7 +131,6 @@ export function AbAnalysisView({ channels, fileName, samplingRate, initialMode =
       if (next) {
         setShowFreqChart(true);
         setShowAccelChart(true);
-        setShowJerkChart(true);
       }
       return next;
     });
@@ -226,7 +223,7 @@ export function AbAnalysisView({ channels, fileName, samplingRate, initialMode =
             </>}
           </div>
           <button className={`btn ${rangeMode ? 'btn-p' : ''}`} onClick={() => setRangeMode((enabled) => !enabled)}>{rangeMode ? '取消框选' : '框选范围'}</button>
-          <button className={`btn ${showDerivs ? 'btn-p' : ''}`} title="同步显示频率、加速度与加加速度图" onClick={toggleDerivView}>导数视图</button>
+          <button className={`btn ${showDerivs ? 'btn-p' : ''}`} title="同步显示频率与加速度图" onClick={toggleDerivView}>导数视图</button>
           <button className="btn" onClick={() => resetZoomRef.current()}>重置视图</button>
           <button className="btn" onClick={handleExport} disabled={!freqPts.length}>导出 CSV</button>
           <button className="btn" onClick={() => inputRef.current?.click()}>打开编码器文件</button>
@@ -272,7 +269,6 @@ export function AbAnalysisView({ channels, fileName, samplingRate, initialMode =
               accelSegs={accelSegs}
               showFreqChart={showFreqChart}
               showAccelChart={showAccelChart}
-              showJerkChart={showJerkChart}
               viewRange={viewRange}
               onToggleChart={toggleChart}
               onViewRangeChange={setViewRange}

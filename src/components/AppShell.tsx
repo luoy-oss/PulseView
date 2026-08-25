@@ -171,7 +171,6 @@ export function AppShell({
               lowGapMarkers={lowGapMarkers}
               showFreqChart={state.showFreqChart}
               showAccelChart={state.showAccelChart}
-              showJerkChart={state.showJerkChart}
               viewRange={viewRange}
               onToggleChart={onToggleChart}
               onViewRangeChange={setViewRange}

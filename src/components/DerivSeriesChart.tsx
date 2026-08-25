@@ -29,7 +29,7 @@ interface Props {
   theme: ThemeId;
 }
 
-// 导数图（加速度 / 加加速度）：与频率图共享时间轴缩放/平移与光标，
+// 加速度图：与频率图共享时间轴缩放/平移与光标，
 // 仅支持缩放、平移与光标放置，不参与框选与加减速分段标注。
 export function DerivSeriesChart({
   pts,

@@ -242,7 +242,7 @@ export const Header = memo(function Header({
         </div>
         <button
           className={`btn ${showDerivs ? 'btn-p' : ''}`}
-          title="同步显示频率、加速度（频率变化率）与加加速度三个图，各图可单独关闭"
+          title="同步显示频率与加速度（频率变化率）两张图，各图可单独关闭"
           onClick={onToggleDerivView}
         >
           导数视图

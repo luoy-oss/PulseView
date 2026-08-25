@@ -20,7 +20,7 @@ export interface LowGapMarker {
   dutyCycle: number;
 }
 
-// 导数曲线点：value 为加速度（Hz/s）或加加速度（Hz/s²）
+// 导数曲线点：value 为加速度（Hz/s）
 export interface DerivPoint {
   time: number;
   value: number;
@@ -191,5 +191,4 @@ export interface AppState {
   showDerivs: boolean;
   showFreqChart: boolean;
   showAccelChart: boolean;
-  showJerkChart: boolean;
 }
