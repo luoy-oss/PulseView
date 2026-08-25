@@ -1,3 +1,5 @@
+import { GithubLink } from './GithubLink';
+
 interface Props {
   left: string;
   right: string;
@@ -22,18 +24,21 @@ function fmtBuildTime(iso: string): string {
 
 export function StatusBar({ left, right }: Props) {
   return (
-    <footer className="status-bar">
-      <span>{left}</span>
-      <span className="status-right">
-        <span
-          className="version-badge"
-          title={'构建时间 ' + __APP_BUILD_TIME__}
-        >
-          v{__APP_VERSION__} · {__APP_COMMIT__} ·{' '}
-          {fmtBuildTime(__APP_BUILD_TIME__)}
+    <>
+      <GithubLink />
+      <footer className="status-bar">
+        <span>{left}</span>
+        <span className="status-right">
+          <span
+            className="version-badge"
+            title={'构建时间 ' + __APP_BUILD_TIME__}
+          >
+            v{__APP_VERSION__} · {__APP_COMMIT__} ·{' '}
+            {fmtBuildTime(__APP_BUILD_TIME__)}
+          </span>
+          <span>{right}</span>
         </span>
-        <span>{right}</span>
-      </span>
-    </footer>
+      </footer>
+    </>
   );
 }

@@ -2,6 +2,7 @@ import { useRef, useState, useCallback } from 'react';
 import { version } from '../../package.json';
 import { ThemeSwitcher } from './ThemeSwitcher';
 import { ThemeId } from '../theme';
+import { GithubLink } from './GithubLink';
 
 interface Props {
   onFile: (file: File, mode?: 'normal' | 'ab' | 'direction') => void;
@@ -29,6 +30,7 @@ export function UploadScreen({ onFile, progress, theme, onThemeChange }: Props) 
   return (
     <div className="upload-overlay">
       <ThemeSwitcher theme={theme} onChange={onThemeChange} />
+      <GithubLink />
       <div
         className={`upload-card ${dragOver ? 'drag-over' : ''}`}
         onDragEnter={(e) => {

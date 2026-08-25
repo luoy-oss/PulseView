@@ -1122,3 +1122,49 @@ body {
   letter-spacing: 0.3px;
   cursor: default;
 }
+
+/* ===== GITHUB REPOSITORY LINK ===== */
+.github-link-container {
+  position: fixed;
+  z-index: 110;
+  left: 18px;
+  bottom: 46px;
+}
+
+.github-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 30px;
+  padding: 4px 8px;
+  border-left: 2px solid var(--teal);
+  color: var(--text-2);
+  font: 600 11px var(--fm);
+  font-family: var(--fx);
+  letter-spacing: 0;
+  text-decoration: none;
+  transition: color 160ms ease, background-color 160ms ease, border-color 160ms ease, transform 160ms ease;
+}
+
+.github-link svg {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+}
+
+.github-link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.github-link:hover {
+  color: var(--teal);
+  background: var(--teal-dim);
+}
+
+@media (max-width: 640px) {
+  .github-link-container {
+    left: 12px;
+    bottom: 12px;
+  }
+}
