@@ -1,8 +1,8 @@
 import type { AccelOptions, DerivPoint, FreqPoint } from './types';
 
 export const DEFAULT_ACCEL_OPTIONS: AccelOptions = {
-  algorithm: 'sg', sgWindow: 11, fftCutoffHz: 0,
-  kalmanProcessNoise: 25, kalmanMeasurementNoise: 1, tdBandwidth: 40,
+  algorithm: 'fft', sgWindow: 11, fftCutoffHz: 100,
+  kalmanProcessNoise: 25, kalmanMeasurementNoise: 0.000001, tdBandwidth: 40,
 };
 
 export function computeAcceleration(pts: FreqPoint[], options: AccelOptions = DEFAULT_ACCEL_OPTIONS): DerivPoint[] {

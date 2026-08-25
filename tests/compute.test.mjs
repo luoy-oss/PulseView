@@ -9,6 +9,10 @@ import {
 } from '../src/compute.ts';
 import { computeAcceleration, DEFAULT_ACCEL_OPTIONS } from '../src/acceleration.ts';
 
+assert.equal(DEFAULT_ACCEL_OPTIONS.algorithm, 'fft');
+assert.equal(DEFAULT_ACCEL_OPTIONS.fftCutoffHz, 100);
+assert.equal(DEFAULT_ACCEL_OPTIONS.kalmanMeasurementNoise, 0.000001);
+
 const levels = new Int8Array([0, 1, 0, 1, 0, 1, 0, 1, 0]);
 
 const continuous = computeFreqFromTransitions(
