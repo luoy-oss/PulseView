@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { UploadScreen } from './components/UploadScreen';
 import { AppShell } from './components/AppShell';
-import { AbChannel, AccelSegment, AppState, CursorMarker, DefaultLevel, EdgeBase, FreqMode, FreqPoint, PulseLevel, SidebarStatVisibility } from './types';
+import { AbChannel, AccelSegment, AppState, CsvChannel, CursorMarker, DefaultLevel, EdgeBase, FreqMode, FreqPoint, PulseLevel, SidebarStatVisibility } from './types';
 import {
   computeFreqFromTransitions,
   countPulsesFromTransitions,
@@ -46,6 +46,8 @@ const initialState: AppState = {
   rangeDataIdxEnd: null,
   fileName: '',
   format: 'txt',
+  channels: [],
+  activeChannelId: null,
   freqMode: 'falling',
   dutyCorrect: false,
   edgeBase: 'falling',
@@ -160,6 +162,7 @@ export function App() {
             const samplingRate: number = d.samplingRate;
             const freqPts: FreqPoint[] = d.freqPts;
             const fmt: 'vcd' | 'txt' | 'sr' | 'saleae' = d.format;
+            const channels: CsvChannel[] = d.channels ?? [];
             if (!samplingRate || freqPts.length === 0) {
               alert('文件中未找到可用的 PWM 频率测量，请检查文件格式。');
               setParsing(false);
@@ -174,6 +177,8 @@ export function App() {
               freqPts,
               fileName: file.name,
               format: fmt,
+              channels,
+              activeChannelId: channels[0]?.id ?? null,
             });
             setParsing(false);
             return;
@@ -185,6 +190,7 @@ export function App() {
           const samplingRate: number = d.samplingRate;
           const sampleCount: number = d.sampleCount;
           const fmt: 'vcd' | 'txt' | 'sr' | 'saleae' = d.format;
+          const channels: CsvChannel[] = d.channels ?? [];
 
           if (!samplingRate) {
             alert('文件头中未找到采样频率，请检查文件格式。');
@@ -242,6 +248,8 @@ export function App() {
               freqPts: allPts,
               fileName: file.name,
               format: fmt,
+              channels,
+              activeChannelId: channels[0]?.id ?? null,
               pulseLevel: prev.pulseLevel,
               defaultLevel,
             };
@@ -256,6 +264,41 @@ export function App() {
       };
 
       worker.postMessage({ type: 'parse', buffer: buf, mode }, [buf]);
+    });
+  }, []);
+
+  const selectChannel = useCallback((channelId: string) => {
+    setState((prev) => {
+      const channel = prev.channels.find((candidate) => candidate.id === channelId);
+      if (!channel || channel.id === prev.activeChannelId) return prev;
+      const defaultLevel = channel.transLevels[0] as DefaultLevel;
+      const transLevels = prev.pulseLevel === 'low' ? invertTransitionLevels(channel.transLevels) : channel.transLevels;
+      const edges = deriveEdgesFromTransitions(channel.transTimes, transLevels);
+      const logicalDefaultLevel = prev.pulseLevel === 'low' ? (defaultLevel === 1 ? 0 : 1) : defaultLevel;
+      const allPts = computeFreqFromTransitions(channel.transTimes, transLevels, prev.format, prev.freqMode, prev.dutyCorrect, prev.edgeBase, prev.lowGapToleranceEnabled, prev.lowGapTolerancePct, logicalDefaultLevel);
+      return {
+        ...prev,
+        samplingRate: channel.samplingRate,
+        sampleCount: channel.sampleCount,
+        pulseCount: countPulsesFromTransitions(transLevels),
+        risingEdges: edges.risingEdges,
+        fallingEdges: edges.fallingEdges,
+        transTimes: channel.transTimes,
+        transLevels,
+        sourceTransLevels: channel.transLevels,
+        allFreqPts: allPts,
+        freqPts: allPts,
+        defaultLevel,
+        activeChannelId: channel.id,
+        cursorA: null,
+        cursorB: null,
+        accelSegs: [],
+        rangeMode: false,
+        rangeStart: null,
+        rangeEnd: null,
+        rangeDataIdxStart: null,
+        rangeDataIdxEnd: null,
+      };
     });
   }, []);
 
@@ -561,6 +604,9 @@ export function App() {
       onSidebarStatsChange={setSidebarStats}
       onFile={handleFile}
       onFreqModeChange={updateFreqMode}
+      channels={state.channels}
+      activeChannelId={state.activeChannelId}
+      onChannelChange={selectChannel}
       onDutyCorrectChange={updateDutyCorrect}
       onEdgeBaseChange={updateEdgeBase}
       onPulseLevelChange={(pulseLevel) => updateWaveformInterpretation(pulseLevel, state.defaultLevel)}

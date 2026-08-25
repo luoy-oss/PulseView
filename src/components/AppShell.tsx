@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
-import { AppState, AccelSegment, CursorMarker, DefaultLevel, EdgeBase, FreqMode, PulseLevel, SidebarStatVisibility } from '../types';
+import { AppState, AccelSegment, CsvChannel, CursorMarker, DefaultLevel, EdgeBase, FreqMode, PulseLevel, SidebarStatVisibility } from '../types';
 import { Header } from './Header';
 import { Sidebar } from './Sidebar';
 import { FreqChart } from './FreqChart';
@@ -15,6 +15,9 @@ interface Props {
   state: AppState;
   onFile: (file: File) => void;
   onFreqModeChange: (mode: FreqMode) => void;
+  channels: CsvChannel[];
+  activeChannelId: string | null;
+  onChannelChange: (channelId: string) => void;
   onDutyCorrectChange: (on: boolean) => void;
   onEdgeBaseChange: (base: EdgeBase) => void;
   onPulseLevelChange: (pulseLevel: PulseLevel) => void;
@@ -45,6 +48,9 @@ export function AppShell({
   state,
   onFile,
   onFreqModeChange,
+  channels,
+  activeChannelId,
+  onChannelChange,
   onDutyCorrectChange,
   onEdgeBaseChange,
   onPulseLevelChange,
@@ -126,6 +132,9 @@ export function AppShell({
         onLowGapToleranceChange={onLowGapToleranceChange}
         onLowGapAnnotationChange={onLowGapAnnotationChange}
         onFreqModeChange={onFreqModeChange}
+        channels={channels}
+        activeChannelId={activeChannelId}
+        onChannelChange={onChannelChange}
         onFile={onFile}
         onRangeModeChange={onRangeModeChange}
         rangeMode={state.rangeMode}

@@ -8,6 +8,12 @@ self.onmessage = function (e: MessageEvent) {
 
   try {
     const result = parseSaleaeFile(u8);
+    const transferables: Transferable[] = [result.risingEdges.buffer, result.fallingEdges.buffer, result.transTimes.buffer, result.transLevels.buffer];
+    for (const channel of result.channels ?? []) {
+      for (const buffer of [channel.risingEdges.buffer, channel.fallingEdges.buffer, channel.transTimes.buffer, channel.transLevels.buffer]) {
+        if (!transferables.includes(buffer)) transferables.push(buffer);
+      }
+    }
 
     (self as unknown as Worker).postMessage(
       {
@@ -18,14 +24,10 @@ self.onmessage = function (e: MessageEvent) {
         fallingEdges: result.fallingEdges,
         transTimes: result.transTimes,
         transLevels: result.transLevels,
+        channels: result.channels,
         format: 'saleae',
       },
-      [
-        result.risingEdges.buffer,
-        result.fallingEdges.buffer,
-        result.transTimes.buffer,
-        result.transLevels.buffer,
-      ]
+      transferables
     );
   } catch (err) {
     (self as unknown as Worker).postMessage({

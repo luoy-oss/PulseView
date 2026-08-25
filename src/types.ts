@@ -77,6 +77,18 @@ export interface ParseResult {
   // PWM 测量导出（sigrok PulseView）直接提供频率/占空比/时间，
   // 无需边沿重建；存在时 App 直接使用，忽略 risingEdges/fallingEdges
   freqPts?: FreqPoint[];
+  channels?: CsvChannel[];
+}
+
+export interface CsvChannel {
+  id: string;
+  name: string;
+  samplingRate: number;
+  sampleCount: number;
+  risingEdges: Float64Array;
+  fallingEdges: Float64Array;
+  transTimes: Float64Array;
+  transLevels: Int8Array;
 }
 
 export interface AbChannel {
@@ -160,6 +172,8 @@ export interface AppState {
   rangeDataIdxEnd: number | null;
   fileName: string;
   format: 'vcd' | 'txt' | 'sr' | 'saleae';
+  channels: CsvChannel[];
+  activeChannelId: string | null;
   freqMode: FreqMode;
   // 占空比修正：勾选后脉冲宽度模式按 freq = 1/(2×脉宽) × (占空比/50%) = 1/周期 计算，
   // 对窄脉冲/占空比变化信号给出真实周期频率；默认关闭（按 50% 占空比假设）

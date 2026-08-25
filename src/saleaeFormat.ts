@@ -23,6 +23,18 @@ export interface SaleaeParseResult {
   fallingEdges: Float64Array;
   transTimes: Float64Array;
   transLevels: Int8Array;
+  channels?: SaleaeChannel[];
+}
+
+export interface SaleaeChannel {
+  id: string;
+  name: string;
+  samplingRate: number;
+  sampleCount: number;
+  risingEdges: Float64Array;
+  fallingEdges: Float64Array;
+  transTimes: Float64Array;
+  transLevels: Int8Array;
 }
 
 interface BinaryTransitionData {
@@ -79,6 +91,95 @@ export function parseSaleaeBinary(u8: Uint8Array): BinaryTransitionData {
 // 与 vcd 解析算法统一：仅保留电平变化点（跳变），连续相同电平的行去重
 // （如 Saleae 导出的结束电平行、静默区重复行），保证跳变序列严格 1/0 交替。
 export function parseTransitionsCsv(text: string): {
+  times: number[];
+  levels: number[];
+  samplingRate: number | null;
+} {
+  return parseLegacyTransitionsCsv(text);
+}
+
+function parseCsvNumber(value: string): number {
+  const c = value.trim().replace(/^['"]|['"]$/g, '');
+  return /^[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?$/.test(c) ? parseFloat(c) : NaN;
+}
+
+function parseChannelRows(text: string): { name: string; index: number }[] {
+  for (const rawLine of text.split(/\r?\n/).slice(0, 100)) {
+    const parts = rawLine.split(',');
+    const channels: { name: string; index: number }[] = [];
+    parts.forEach((part, index) => {
+      const match = part.trim().match(/^Channel\s+(.+)$/i);
+      if (match) channels.push({ name: match[1].trim(), index });
+    });
+    if (channels.length) return channels;
+  }
+  return [];
+}
+
+function parseCsvChannels(text: string): { channels: SaleaeChannel[] } {
+  const lines = text.split(/\r?\n/);
+  const headerChannels = parseChannelRows(text);
+  const channels = headerChannels.map((header) => ({
+    ...header,
+    times: [] as number[],
+    levels: [] as number[],
+    sampleCount: 0,
+    prevLevel: null as number | null,
+  }));
+  let timeIndex = -1;
+  let samplingRate: number | null = null;
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+    if (!line) continue;
+    if (line.startsWith(';')) {
+      const m = line.match(/Sample rate:\s*([0-9.]+)\s*([kMG])?Hz/i);
+      if (m) {
+        const base = parseFloat(m[1]);
+        const unit = m[2]?.toUpperCase();
+        samplingRate = unit === 'k' ? base * 1e3 : unit === 'M' ? base * 1e6 : unit === 'G' ? base * 1e9 : base;
+      }
+      continue;
+    }
+    const parts = line.split(',');
+    if (timeIndex < 0) {
+      const headerTime = parts.findIndex((part) => /^Time\s*(?:\(s\)|\[s\])\s*$/i.test(part.trim()));
+      if (headerTime < 0) continue;
+      timeIndex = headerTime;
+      continue;
+    }
+    const time = parseCsvNumber(parts[timeIndex] ?? '');
+    if (!Number.isFinite(time)) continue;
+    for (const channel of channels) {
+      const level = parseCsvNumber(parts[channel.index] ?? '');
+      if (level !== 0 && level !== 1) continue;
+      channel.sampleCount++;
+      if (channel.prevLevel === level) continue;
+      channel.prevLevel = level;
+      channel.times.push(time);
+      channel.levels.push(level);
+    }
+  }
+  const result = channels
+    .filter((channel) => channel.times.length >= 3)
+    .map((channel): SaleaeChannel => {
+      const rising = channel.times.filter((_, index) => channel.levels[index] === 1);
+      const falling = channel.times.filter((_, index) => channel.levels[index] === 0);
+      return {
+        id: channel.name,
+        name: `Channel ${channel.name}`,
+        samplingRate: samplingRate ?? estimateSamplingRate(channel.times),
+        sampleCount: channel.sampleCount,
+        risingEdges: new Float64Array(rising),
+        fallingEdges: new Float64Array(falling),
+        transTimes: new Float64Array(channel.times),
+        transLevels: new Int8Array(channel.levels),
+      };
+    });
+  if (result.length === 0) throw new Error('CSV 中未检测到足够的有效通道跳变（至少需要 3 个），请检查文件格式');
+  return { channels: result };
+}
+
+function parseLegacyTransitionsCsv(text: string): {
   times: number[];
   levels: number[];
   samplingRate: number | null;
@@ -185,7 +286,20 @@ export function parseSaleaeFile(u8: Uint8Array): SaleaeParseResult {
     levels = expanded.levels;
   } else {
     const text = new TextDecoder('utf-8', { fatal: false }).decode(u8);
-    const csv = parseTransitionsCsv(text);
+    const csvChannels = parseChannelRows(text).length ? parseCsvChannels(text).channels : [];
+    if (csvChannels.length) {
+      const firstChannel = csvChannels[0];
+      return {
+        samplingRate: firstChannel.samplingRate,
+        sampleCount: firstChannel.sampleCount,
+        risingEdges: firstChannel.risingEdges,
+        fallingEdges: firstChannel.fallingEdges,
+        transTimes: firstChannel.transTimes,
+        transLevels: firstChannel.transLevels,
+        channels: csvChannels,
+      };
+    }
+    const csv = parseLegacyTransitionsCsv(text);
     times = csv.times;
     levels = csv.levels;
     headerRate = csv.samplingRate;

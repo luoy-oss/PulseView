@@ -1,5 +1,5 @@
 import { memo, useRef, useCallback } from 'react';
-import { DefaultLevel, EdgeBase, FreqPoint, FreqMode, PulseLevel } from '../types';
+import { CsvChannel, DefaultLevel, EdgeBase, FreqPoint, FreqMode, PulseLevel } from '../types';
 import { ThemeSwitcher } from './ThemeSwitcher';
 import { ThemeId } from '../theme';
 
@@ -7,6 +7,8 @@ interface Props {
   fileName: string;
   allFreqPts: FreqPoint[];
   freqMode: FreqMode;
+  channels: CsvChannel[];
+  activeChannelId: string | null;
   dutyCorrect: boolean;
   edgeBase: EdgeBase;
   pulseLevel: PulseLevel;
@@ -24,6 +26,7 @@ interface Props {
   onLowGapToleranceChange: (enabled: boolean, pct: number) => void;
   onLowGapAnnotationChange: (enabled: boolean, threshold: number) => void;
   onFreqModeChange: (mode: FreqMode) => void;
+  onChannelChange: (channelId: string) => void;
   onFile: (file: File) => void;
   onRangeModeChange: (mode: boolean) => void;
   rangeMode: boolean;
@@ -38,6 +41,8 @@ export const Header = memo(function Header({
   fileName,
   allFreqPts,
   freqMode,
+  channels,
+  activeChannelId,
   dutyCorrect,
   edgeBase,
   pulseLevel,
@@ -55,6 +60,7 @@ export const Header = memo(function Header({
   onLowGapToleranceChange,
   onLowGapAnnotationChange,
   onFreqModeChange,
+  onChannelChange,
   onFile,
   onRangeModeChange,
   rangeMode,
@@ -97,6 +103,14 @@ export const Header = memo(function Header({
       </div>
       <div className="header-r">
         <ThemeSwitcher theme={theme} onChange={onThemeChange} compact />
+        {channels.length > 1 && (
+          <label className="channel-select" title="切换要显示和分析的 CSV 数字通道">
+            通道
+            <select value={activeChannelId ?? ''} onChange={(event) => onChannelChange(event.target.value)}>
+              {channels.map((channel) => <option key={channel.id} value={channel.id}>{channel.name}</option>)}
+            </select>
+          </label>
+        )}
         <div className="freq-mode-group">
           <button
             className={`btn btn-sm ${freqMode === 'pulse' ? 'btn-p' : ''}`}
