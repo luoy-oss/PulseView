@@ -1,8 +1,8 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
-import { CursorMarker, FreqPoint, AccelSegment, FreqMode, LowGapMarker } from '../types';
+import { AccelAlgorithm, AccelOptions, CursorMarker, FreqPoint, AccelSegment, FreqMode, LowGapMarker } from '../types';
 import { FreqChart } from './FreqChart';
 import { DerivSeriesChart } from './DerivSeriesChart';
-import { computeDerivatives } from '../compute';
+import { computeAcceleration, DEFAULT_ACCEL_OPTIONS } from '../acceleration';
 import { fmtRate } from '../utils';
 import { ViewRange } from '../decimate';
 import { ThemeId, THEME_COLORS } from '../theme';
@@ -70,11 +70,16 @@ export function DerivView({
   theme,
 }: Props) {
   const colors = THEME_COLORS[theme];
+  const [accelOptions, setAccelOptions] = useState<AccelOptions>(DEFAULT_ACCEL_OPTIONS);
   // 由频率-时间曲线派生的加速度曲线。
   const accel = useMemo(
-    () => computeDerivatives(allFreqPts),
-    [allFreqPts]
+    () => computeAcceleration(allFreqPts, accelOptions),
+    [allFreqPts, accelOptions]
   );
+
+  const updateAccelOption = useCallback(<K extends keyof AccelOptions>(key: K, value: AccelOptions[K]) => {
+    setAccelOptions((previous) => ({ ...previous, [key]: value }));
+  }, []);
 
   // 数据变化（重新载入文件 / 切换频率模式）时重置共享视图
   useEffect(() => {
@@ -166,6 +171,31 @@ export function DerivView({
             >
               ×
             </button>
+          </div>
+          <div className="accel-chart-controls">
+            <label>
+              算法
+              <select value={accelOptions.algorithm} onChange={(event) => updateAccelOption('algorithm', event.target.value as AccelAlgorithm)}>
+                <option value="sg">SG 平滑 + 中心差分</option>
+                <option value="fft">FFT 低通 + 中心差分</option>
+                <option value="kalman">卡尔曼状态估计</option>
+                <option value="td">跟踪微分器 TD</option>
+              </select>
+            </label>
+            {accelOptions.algorithm === 'sg' && <label>
+              窗口 <input type="number" min="3" max="101" step="2" value={accelOptions.sgWindow} onChange={(event) => updateAccelOption('sgWindow', Math.max(3, Math.min(101, Number(event.target.value) || 3)))} /> 点
+            </label>}
+            {accelOptions.algorithm === 'fft' && <label>
+              截止 <input type="number" min="0" step="0.1" value={accelOptions.fftCutoffHz} onChange={(event) => updateAccelOption('fftCutoffHz', Math.max(0, Number(event.target.value) || 0))} /> Hz
+            </label>}
+            {accelOptions.algorithm === 'kalman' && <>
+              <label>过程噪声 <input type="number" min="0.000001" step="1" value={accelOptions.kalmanProcessNoise} onChange={(event) => updateAccelOption('kalmanProcessNoise', Math.max(0.000001, Number(event.target.value) || 0.000001))} /></label>
+              <label>测量噪声 <input type="number" min="0.000001" step="0.1" value={accelOptions.kalmanMeasurementNoise} onChange={(event) => updateAccelOption('kalmanMeasurementNoise', Math.max(0.000001, Number(event.target.value) || 0.000001))} /></label>
+            </>}
+            {accelOptions.algorithm === 'td' && <label>
+              响应带宽 <input type="number" min="0.1" max="10000" step="1" value={accelOptions.tdBandwidth} onChange={(event) => updateAccelOption('tdBandwidth', Math.max(0.1, Math.min(10000, Number(event.target.value) || 0.1)))} /> s^-1
+            </label>}
+            <span className="accel-chart-hint">{accelOptions.algorithm === 'sg' ? '保留峰值，推荐默认使用' : accelOptions.algorithm === 'fft' ? '离线低通，平滑最强' : accelOptions.algorithm === 'kalman' ? '根据噪声模型平滑估计' : '低延迟动态跟踪'}</span>
           </div>
           <DerivSeriesChart
             pts={accel}

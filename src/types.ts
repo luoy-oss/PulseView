@@ -26,6 +26,17 @@ export interface DerivPoint {
   value: number;
 }
 
+export type AccelAlgorithm = 'sg' | 'fft' | 'kalman' | 'td';
+
+export interface AccelOptions {
+  algorithm: AccelAlgorithm;
+  sgWindow: number;
+  fftCutoffHz: number;
+  kalmanProcessNoise: number;
+  kalmanMeasurementNoise: number;
+  tdBandwidth: number;
+}
+
 export interface Transition {
   time_s: number;
   level: 0 | 1;

@@ -1123,6 +1123,23 @@ body {
   cursor: default;
 }
 
+.accel-chart-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  padding: 5px 12px;
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--surface);
+  color: var(--text-3);
+  font-size: 11px;
+}
+
+.accel-chart-controls label { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+.accel-chart-controls select, .accel-chart-controls input { height: 24px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg); color: var(--text-1); font: inherit; padding: 0 5px; }
+.accel-chart-controls input { width: 60px; }
+.accel-chart-hint { color: var(--text-3); }
+
 /* ===== GITHUB REPOSITORY LINK ===== */
 .github-link-container {
   position: fixed;
