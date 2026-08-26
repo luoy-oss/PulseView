@@ -169,7 +169,7 @@ git push origin v3.4.0
 
 Release workflow 支持标准 SemVer 预发布版本。只要 `package.json` 的版本包含 `-` 后缀，GitHub Release 就会自动标记为 **Pre-release**，不会作为最新正式版发布。
 
-当前测试版为 `3.4.0-beta.1`。提交完成后，如需触发 GitHub 测试版发布，可执行：
+当前正式版本为 `3.4.0`。如需发布带后缀的测试版本，仍可按下方示例使用预发布标签：
 
 ```bash
 git tag v3.4.0-beta.1
