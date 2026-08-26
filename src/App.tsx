@@ -18,6 +18,7 @@ import SrWorker from './workers/srParser.ts?worker';
 import SaleaeWorker from './workers/saleaeParser.ts?worker';
 import { AbAnalysisView } from './components/AbAnalysisView';
 import { getInitialTheme, ThemeId } from './theme';
+import { disableWasm, initializeWasm } from './wasm/runtime.ts';
 
 const initialState: AppState = {
   samplingRate: 0,
@@ -103,7 +104,31 @@ export function App() {
   const [abFileName, setAbFileName] = useState('');
   const [encoderMode, setEncoderMode] = useState<'ab' | 'direction'>('ab');
   const [theme, setTheme] = useState<ThemeId>(getInitialTheme);
+  const [experimentalAccelerationEnabled, setExperimentalAccelerationEnabled] = useState(false);
+  const [experimentalAccelerationStatus, setExperimentalAccelerationStatus] = useState<'off' | 'loading' | 'ready' | 'error'>('off');
   const workerRef = useRef<Worker | null>(null);
+  const wasmRequestRef = useRef(0);
+
+  const updateExperimentalAcceleration = useCallback((enabled: boolean) => {
+    const requestId = ++wasmRequestRef.current;
+    if (!enabled) {
+      disableWasm();
+      setExperimentalAccelerationEnabled(false);
+      setExperimentalAccelerationStatus('off');
+      return;
+    }
+    setExperimentalAccelerationEnabled(true);
+    setExperimentalAccelerationStatus('loading');
+    void initializeWasm().then((loaded) => {
+      if (wasmRequestRef.current !== requestId) return;
+      if (loaded) {
+        setExperimentalAccelerationStatus('ready');
+      } else {
+        setExperimentalAccelerationEnabled(false);
+        setExperimentalAccelerationStatus('error');
+      }
+    });
+  }, []);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -584,11 +609,11 @@ export function App() {
   }
 
   if (!state.samplingRate && !parsing) {
-    return <UploadScreen onFile={handleFile} theme={theme} onThemeChange={setTheme} />;
+    return <UploadScreen onFile={handleFile} theme={theme} onThemeChange={setTheme} experimentalAccelerationEnabled={experimentalAccelerationEnabled} experimentalAccelerationStatus={experimentalAccelerationStatus} onExperimentalAccelerationChange={updateExperimentalAcceleration} />;
   }
 
   if (parsing) {
-    return <UploadScreen onFile={handleFile} progress={parseProgress} theme={theme} onThemeChange={setTheme} />;
+    return <UploadScreen onFile={handleFile} progress={parseProgress} theme={theme} onThemeChange={setTheme} experimentalAccelerationEnabled={experimentalAccelerationEnabled} experimentalAccelerationStatus={experimentalAccelerationStatus} onExperimentalAccelerationChange={updateExperimentalAcceleration} />;
   }
 
   return (

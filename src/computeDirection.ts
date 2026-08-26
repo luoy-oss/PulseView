@@ -1,5 +1,6 @@
-import type { AbChannel, AbFreqPoint, DirectionAnalysis, DirectionLevel, DirectionMapping, EdgeBase, FreqMode, FreqPoint } from './types';
+import type { AbChannel, AbFreqPoint, DirectionAnalysis, DirectionLevel, DirectionMapping, EdgeBase, FreqMode, FreqPoint } from './types.ts';
 import { computeFreqFromTransitions } from './compute.ts';
+import { wasmComputeDirectionAnalysis } from './wasm/encoder.ts';
 
 export const DIRECTION_PRESETS: DirectionMapping[] = [
   { preset: 'idle-high-forward-low', idleLevel: 1, forwardLevel: 0 },
@@ -26,6 +27,21 @@ function latestLevel(channel: AbChannel, time: number): DirectionLevel | null {
 }
 
 export function computeDirectionAnalysis(
+  pulse: AbChannel,
+  direction: AbChannel,
+  mapping: DirectionMapping,
+  pulseLevel: DirectionLevel = 1,
+  freqMode: FreqMode = 'rising',
+  dutyCorrect = false,
+  edgeBase: EdgeBase = 'rising',
+): DirectionAnalysis {
+  return wasmComputeDirectionAnalysis(
+    pulse, direction, mapping, pulseLevel,
+    () => computeDirectionAnalysisTs(pulse, direction, mapping, pulseLevel, freqMode, dutyCorrect, edgeBase),
+  );
+}
+
+function computeDirectionAnalysisTs(
   pulse: AbChannel,
   direction: AbChannel,
   mapping: DirectionMapping,

@@ -9,9 +9,20 @@ interface Props {
   progress?: string;
   theme: ThemeId;
   onThemeChange: (theme: ThemeId) => void;
+  experimentalAccelerationEnabled: boolean;
+  experimentalAccelerationStatus: 'off' | 'loading' | 'ready' | 'error';
+  onExperimentalAccelerationChange: (enabled: boolean) => void;
 }
 
-export function UploadScreen({ onFile, progress, theme, onThemeChange }: Props) {
+export function UploadScreen({
+  onFile,
+  progress,
+  theme,
+  onThemeChange,
+  experimentalAccelerationEnabled,
+  experimentalAccelerationStatus,
+  onExperimentalAccelerationChange,
+}: Props) {
   const normalInputRef = useRef<HTMLInputElement>(null);
   const abInputRef = useRef<HTMLInputElement>(null);
   const directionInputRef = useRef<HTMLInputElement>(null);
@@ -50,6 +61,27 @@ export function UploadScreen({ onFile, progress, theme, onThemeChange }: Props) 
           频率分析器 <span className="upload-ver">v{version}</span>
         </p>
         <p className="upload-sub">拖放 .vcd / .txt / .sr / .bin / .csv 文件到此处</p>
+        <label className={`experimental-toggle ${experimentalAccelerationEnabled ? 'enabled' : ''}`}>
+          <input
+            type="checkbox"
+            checked={experimentalAccelerationEnabled}
+            disabled={experimentalAccelerationStatus === 'loading' || Boolean(progress)}
+            onChange={(event) => onExperimentalAccelerationChange(event.target.checked)}
+          />
+          <span className="experimental-toggle-copy">
+            <strong>是否启用测试性功能【可加速解析】</strong>
+            <small>当前加速 AB 相与脉冲方向分析；测试性功能可能不稳定，异常时自动回退</small>
+          </span>
+          <span className={`experimental-status ${experimentalAccelerationStatus}`}>
+            {experimentalAccelerationStatus === 'loading'
+              ? '正在启用…'
+              : experimentalAccelerationStatus === 'ready'
+                ? '已启用'
+                : experimentalAccelerationStatus === 'error'
+                  ? '启用失败'
+                  : '未启用'}
+          </span>
+        </label>
         <p className="sep">· · ·</p>
         <div className="upload-actions">
           <button className="upload-btn" onClick={(e) => { e.stopPropagation(); normalInputRef.current?.click(); }}>

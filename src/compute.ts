@@ -523,6 +523,7 @@ export function detectAccelSegments(pts: FreqPoint[]): AccelSegment[] {
   };
 
   const totalDur = pts[n - 1].time - pts[0].time;
+  if (!(totalDur > 0)) return [];
   // 最大尺度限制为总时长/32：窗口过大会跨过段边界污染平台（平台必须比窗口长才有核心）
   const base = Math.max(medianGap * 8, totalDur / 16384);
   const maxScale = Math.max(totalDur / 32, base * 2);
@@ -602,25 +603,14 @@ export function detectAccelSegments(pts: FreqPoint[]): AccelSegment[] {
   const segs: RawSeg[] = [];
   let s = 0;
   const segType = (i: number) => (isPlateau[i] ? 'const' : 'chg');
-  for (let i = 0; i < n; i++) {
-    if (segType(i) !== segType(s)) {
+  for (let i = 1; i < n; i++) {
+    const hasStopGap = pts[i].time - pts[i - 1].time > gapThreshold;
+    if (hasStopGap || segType(i) !== segType(s)) {
       segs.push({ type: segType(s), start: s, end: i - 1 });
       s = i;
     }
   }
   segs.push({ type: segType(s), start: s, end: n - 1 });
-  for (let i = 1; i < n; i++) {
-    if (pts[i].time - pts[i - 1].time > gapThreshold) {
-      for (const seg of segs) {
-        if (seg.start < i && i <= seg.end) {
-          segs.push({ type: seg.type, start: i, end: seg.end });
-          seg.end = i - 1;
-          break;
-        }
-      }
-    }
-  }
-  segs.sort((a, b) => a.start - b.start);
 
   // 共享边界帧：过渡段与相邻匀速段共用边界帧（过渡尾帧 = 匀速首帧，频率相同），
   // 使加减速区间的首/尾帧与匀速区间的首帧保持一致，不丢帧

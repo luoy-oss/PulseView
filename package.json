@@ -1,13 +1,19 @@
 {
   "name": "pulseview-freq-analyzer",
-  "version": "3.3.1",
+  "version": "3.4.0-beta.1",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "npm run build:web",
+    "build:web": "tsc -b && vite build",
     "preview": "vite preview",
-    "test": "node --experimental-strip-types tests/compute.test.mjs && node --experimental-strip-types tests/txtParser.test.mjs && node --experimental-strip-types tests/direction.test.mjs && node --experimental-strip-types tests/decimate.test.mjs && node --experimental-strip-types tests/saleaeFormat.test.mjs"
+    "test": "node --experimental-strip-types tests/compute.test.mjs && node --experimental-strip-types tests/txtParser.test.mjs && node --experimental-strip-types tests/direction.test.mjs && node --experimental-strip-types tests/decimate.test.mjs && node --experimental-strip-types tests/saleaeFormat.test.mjs && node --experimental-strip-types tests/wasmRuntime.test.mjs && node --experimental-strip-types tests/wasmCompute.test.mjs && node --experimental-strip-types tests/wasmAcceleration.test.mjs && node --experimental-strip-types tests/wasmEncoder.test.mjs && node --experimental-strip-types tests/wasmDecimation.test.mjs",
+    "wasm:build": "node scripts/build-wasm.mjs",
+    "wasm:rebuild": "npm run wasm:build",
+    "wasm:check": "npm run wasm:build && git diff --exit-code -- src/wasm/pkg",
+    "wasm:test": "cargo test --manifest-path wasm-core/Cargo.toml",
+    "wasm:benchmark": "node --experimental-strip-types tests/wasmBenchmark.mjs"
   },
   "dependencies": {
     "chart.js": "^4.4.4",

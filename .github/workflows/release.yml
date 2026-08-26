@@ -31,6 +31,21 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.94.1
+          targets: wasm32-unknown-unknown
+          components: rustfmt
+
+      - name: Cache Rust build artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: wasm-core
+
+      - name: Install wasm-bindgen CLI
+        run: cargo install wasm-bindgen-cli --version 0.2.100 --locked
+
       - name: Read and validate release version
         id: version
         env:
@@ -39,6 +54,7 @@ jobs:
         run: |
           VERSION="$(node --print "require('./package.json').version")"
           TAG="v${VERSION}"
+          PRERELEASE="$(node --input-type=commonjs --eval "const version=require('./package.json').version; process.stdout.write(version.includes('-') ? 'true' : 'false')")"
 
           if [ "${EVENT_NAME}" = "push" ] && [ "${REF_NAME}" != "${TAG}" ]; then
             echo "Tag ${REF_NAME} does not match package.json version ${VERSION}." >&2
@@ -47,10 +63,15 @@ jobs:
 
           echo "version=${VERSION}" >> "${GITHUB_OUTPUT}"
           echo "tag=${TAG}" >> "${GITHUB_OUTPUT}"
+          echo "prerelease=${PRERELEASE}" >> "${GITHUB_OUTPUT}"
           echo "Release version: ${VERSION}"
+          echo "Pre-release: ${PRERELEASE}"
 
       - name: Run tests
-        run: npm test
+        run: |
+          npm run wasm:test
+          npm run wasm:check
+          npm test
 
       - name: Build production bundle
         run: npm run build
@@ -70,7 +91,17 @@ jobs:
           TAG: ${{ steps.version.outputs.tag }}
           VERSION: ${{ steps.version.outputs.version }}
           ARCHIVE: ${{ steps.artifact.outputs.archive }}
+          PRERELEASE: ${{ steps.version.outputs.prerelease }}
         run: |
-          gh release create "${TAG}" "${ARCHIVE}" \
-            --title "PulseView v${VERSION}" \
+          RELEASE_ARGS=(
+            "${TAG}"
+            "${ARCHIVE}"
+            --title "PulseView v${VERSION}"
             --generate-notes
+          )
+
+          if [ "${PRERELEASE}" = "true" ]; then
+            RELEASE_ARGS+=(--prerelease)
+          fi
+
+          gh release create "${RELEASE_ARGS[@]}"

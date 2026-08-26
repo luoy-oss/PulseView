@@ -483,10 +483,7 @@ export function FreqChart({
 
   const rangeCount =
     rangeStart !== null && rangeEnd !== null
-      ? Math.abs(
-          allFreqPts.filter((p) => p.time >= Math.min(rangeStart, rangeEnd)).length -
-            allFreqPts.filter((p) => p.time > Math.max(rangeStart, rangeEnd)).length
-        )
+      ? countPointsInRange(allFreqPts, Math.min(rangeStart, rangeEnd), Math.max(rangeStart, rangeEnd))
       : 0;
 
   return (
@@ -554,6 +551,25 @@ export function FreqChart({
       </div>
     </>
   );
+}
+
+function countPointsInRange(points: FreqPoint[], minimum: number, maximum: number): number {
+  let low = 0;
+  let high = points.length;
+  while (low < high) {
+    const middle = (low + high) >> 1;
+    if (points[middle].time < minimum) low = middle + 1;
+    else high = middle;
+  }
+  const first = low;
+  low = 0;
+  high = points.length;
+  while (low < high) {
+    const middle = (low + high) >> 1;
+    if (points[middle].time <= maximum) low = middle + 1;
+    else high = middle;
+  }
+  return Math.max(0, low - first);
 }
 
 function exportCSV(pts: FreqPoint[], filename: string) {

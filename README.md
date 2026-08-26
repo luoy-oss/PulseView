@@ -32,14 +32,43 @@
 
 ## 快速开始
 
-环境要求：Node.js ≥ 18
+### 环境要求
+
+- Node.js 22 LTS（推荐）；Vite 7 至少需要 Node.js 20.19 或 22.12
+- npm 10 或更高版本
+- 普通开发、构建和部署不需要安装 Rust。仓库已包含生成好的 WASM 文件
+
+### 本地开发
 
 ```bash
-# 安装依赖
-npm install
+# 克隆项目
+git clone https://github.com/luoy-oss/PulseView.git
+cd PulseView
+
+# 按 package-lock.json 安装依赖
+npm ci
 
 # 启动开发服务器
 npm run dev
+```
+
+打开终端显示的地址，默认通常是 <http://localhost:5173>。
+
+如果需要让同一局域网内的其他设备访问：
+
+```bash
+npm run dev -- --host
+```
+
+Vite 会同时显示本机地址和局域网地址。Windows 防火墙首次弹窗时，需要允许 Node.js 访问专用网络。
+
+首页的「是否启用测试性功能【可加速解析】」默认关闭，且不会记住上次选择。主动勾选后才会加载 Rust/WASM，目前用于加速 AB 相与脉冲方向分析；加载或执行失败时会自动回退 TypeScript。普通频率分析不需要开启该选项。
+
+### 测试与生产构建
+
+```bash
+# 运行原有功能测试和 TS/WASM 等价测试
+npm test
 
 # 构建生产版本
 npm run build
@@ -48,17 +77,153 @@ npm run build
 npm run preview
 ```
 
-构建产物输出到 `dist/`。
+打开预览服务器显示的地址，默认通常是 <http://localhost:4173>。生产文件输出到 `dist/`，其中包含 JavaScript、CSS 和 `.wasm` 资源。
+
+`npm run build` 使用仓库内已生成的 `src/wasm/pkg`，因此普通开发机和部署平台只需 Node.js。如果修改了 `wasm-core/`，请先按「Rust/WASM 开发」一节重新生成 WASM。
 
 ## 部署
 
-项目已内置 [`vercel.json`](vercel.json)，可直接部署到 Vercel：
+这是纯静态前端项目，没有数据库和服务端 API。部署目标只需要托管 `dist/` 目录，并允许浏览器加载 `.wasm` 文件。
+
+### Vercel
+
+项目已内置 [`vercel.json`](vercel.json)。最简单的方式是在 Vercel 控制台导入 `luoy-oss/PulseView`，配置保持为：
+
+| 配置 | 值 |
+| --- | --- |
+| Framework Preset | Vite |
+| Install Command | `npm ci` |
+| Build Command | `npm run build` |
+| Output Directory | `dist` |
+
+也可以使用 Vercel CLI：
 
 ```bash
+npm install --global vercel
+vercel login
 vercel
+
+# 确认预览环境正常后发布到生产
+vercel --prod
 ```
 
-或导入仓库到 [Vercel](https://vercel.com)，框架自动识别为 Vite，构建命令 `vite build`，输出目录 `dist`。
+Vercel 部署使用仓库中的已生成 WASM，不需要在 Vercel 安装 Rust。
+
+### GitHub Pages
+
+仓库包含 [Pages workflow](.github/workflows/pages.yml)，推送到 `main` 后可自动部署：
+
+1. 打开 GitHub 仓库的 **Settings → Pages**。
+2. 在 **Build and deployment → Source** 中选择 **GitHub Actions**。
+3. 推送到 `main`，或在 **Actions → Deploy GitHub Pages** 中点击 **Run workflow**。
+4. 部署完成后访问 <https://luoy-oss.github.io/PulseView/>。
+
+Pages workflow 会根据 GitHub 仓库名自动生成基础路径，例如本仓库为 `VITE_BASE_PATH=/PulseView/`，确保 JavaScript 和 WASM 在仓库子路径下正确加载。
+
+### Cloudflare Pages、Netlify 或其他静态托管
+
+使用下面的通用配置：
+
+| 配置 | 值 |
+| --- | --- |
+| Node.js | 22 |
+| 安装命令 | `npm ci` |
+| 构建命令 | `npm run build` |
+| 发布目录 | `dist` |
+
+部署到域名根路径时无需额外环境变量。部署到 `/some-path/` 等子路径时，构建前设置：
+
+```bash
+VITE_BASE_PATH=/some-path/ npm run build
+```
+
+Windows PowerShell 对应命令：
+
+```powershell
+$env:VITE_BASE_PATH = '/some-path/'
+npm run build
+```
+
+自建 Nginx/Apache 时应确保 `.wasm` 响应的 `Content-Type` 为 `application/wasm`。即使服务器 MIME 配置不正确，浏览器通常也会回退到普通实例化，但启动速度会变慢。
+
+### GitHub Actions
+
+仓库包含三个工作流：
+
+| 工作流 | 触发条件 | 作用 |
+| --- | --- | --- |
+| [CI](.github/workflows/ci.yml) | PR、推送到 `main` | 检查 Rust 格式与测试、WASM 生成物一致性、TS/WASM 等价测试和生产构建 |
+| [Deploy GitHub Pages](.github/workflows/pages.yml) | 推送到 `main`、手动运行 | 使用 `/PulseView/` 基础路径构建并发布 `dist/` |
+| [Release](.github/workflows/release.yml) | `v*.*.*` 标签、手动运行 | 完整测试后打包 `dist/` 并创建 GitHub Release |
+
+Release 标签必须与 `package.json` 的版本一致。例如准备正式版 `3.4.0`：
+
+```bash
+git tag v3.4.0
+git push origin v3.4.0
+```
+
+不要在未更新 `package.json` 版本时创建不同版本号的标签，否则 Release workflow 会主动失败。
+
+#### 发布 Alpha、Beta 或 RC 测试版
+
+Release workflow 支持标准 SemVer 预发布版本。只要 `package.json` 的版本包含 `-` 后缀，GitHub Release 就会自动标记为 **Pre-release**，不会作为最新正式版发布。
+
+当前测试版为 `3.4.0-beta.1`。提交完成后，如需触发 GitHub 测试版发布，可执行：
+
+```bash
+git tag v3.4.0-beta.1
+git push origin v3.4.0-beta.1
+```
+
+```bash
+# Alpha：内部或早期测试
+npm version 3.4.0-alpha.1 --no-git-tag-version
+git add package.json package-lock.json
+git commit -m "chore: prepare v3.4.0-alpha.1"
+git tag v3.4.0-alpha.1
+git push origin main v3.4.0-alpha.1
+
+# 后续 Beta
+npm version 3.4.0-beta.1 --no-git-tag-version
+git add package.json package-lock.json
+git commit -m "chore: prepare v3.4.0-beta.1"
+git tag v3.4.0-beta.1
+git push origin main v3.4.0-beta.1
+
+# 发布候选版
+npm version 3.4.0-rc.1 --no-git-tag-version
+git add package.json package-lock.json
+git commit -m "chore: prepare v3.4.0-rc.1"
+git tag v3.4.0-rc.1
+git push origin main v3.4.0-rc.1
+```
+
+测试完成后，将版本改为不带后缀的正式版本并创建对应标签：
+
+```bash
+npm version 3.4.0 --no-git-tag-version
+git add package.json package-lock.json
+git commit -m "chore: prepare v3.4.0"
+git tag v3.4.0
+git push origin main v3.4.0
+```
+
+版本识别规则：
+
+| `package.json` 版本 | Git 标签 | GitHub Release 类型 |
+| --- | --- | --- |
+| `3.4.0-alpha.1` | `v3.4.0-alpha.1` | Pre-release |
+| `3.4.0-beta.1` | `v3.4.0-beta.1` | Pre-release |
+| `3.4.0-rc.1` | `v3.4.0-rc.1` | Pre-release |
+| `3.4.0` | `v3.4.0` | 正式 Release |
+
+### 常见问题
+
+- 页面可以打开，但 AB/方向分析没有加速：检查浏览器控制台和 Network 面板中的 `.wasm` 请求。WASM 加载失败时应用会自动回退 TypeScript，功能仍可使用。
+- 部署后 JS 或 WASM 返回 404：通常是子路径配置不正确。将 `VITE_BASE_PATH` 设置为以 `/` 开头和结尾的部署路径后重新构建。
+- `npm run wasm:rebuild` 提示找不到 Cargo 或 `wasm-bindgen`：只有修改 Rust 源码时才需要这些工具，请按下方 Rust/WASM 开发说明安装。
+- Vite 报 Node.js 版本不支持：升级到 Node.js 22 LTS，删除 `node_modules` 后重新运行 `npm ci`。
 
 ## 使用方法
 
@@ -83,9 +248,15 @@ AB 相模式会读取 VCD 头中的全部单比特信号定义，例如 `$var wi
 
 ```
 PulseView/
+├── .github/workflows/       # CI、GitHub Pages 与 Release 自动化
 ├── index.html              # 入口页面
+├── package.json            # 本地、测试、构建与 WASM 命令
 ├── vite.config.ts          # Vite 配置
 ├── vercel.json             # Vercel 部署配置
+├── scripts/
+│   └── build-wasm.mjs      # Cargo + wasm-bindgen 生成脚本
+├── wasm-core/              # Rust 数值内核及 Rust 测试
+├── tests/                  # TypeScript 功能与 TS/WASM 等价测试
 └── src/
     ├── main.tsx            # 应用入口
     ├── App.tsx             # 状态管理与文件解析调度
@@ -95,6 +266,7 @@ PulseView/
     ├── saleaeFormat.ts     # Saleae Logic 2 导出格式解析：.bin 二进制头部与跳变时间、.csv 跳变行
     ├── compute.ts          # 频率计算、统计、加减速分段、直方图算法
     ├── decimate.ts         # 可见窗口数据定位与像素列 min/max 抽稀
+    ├── wasm/               # WASM 加载、回退、对照与生成产物
     ├── workers/
     │   ├── vcdParser.ts    # VCD 文件解析 Worker
     │   ├── txtParser.ts    # TXT 文件解析 Worker
@@ -127,9 +299,25 @@ PulseView/
 ## 技术栈
 
 - [React](https://react.dev) 18 + [TypeScript](https://www.typescriptlang.org) 5
-- [Vite](https://vitejs.dev) 5
+- [Vite](https://vitejs.dev) 7
 - [Chart.js](https://www.chartjs.org) 4 + [react-chartjs-2](https://react-chartjs-2.js.org)，配合 [chartjs-plugin-zoom](https://github.com/chartjs/chartjs-plugin-zoom) 与 [chartjs-plugin-annotation](https://github.com/chartjs/chartjs-plugin-annotation)
 - Web Worker（Vite `?worker` 导入）承载文件解析
+- Rust/WebAssembly（`wasm-bindgen`）承载 AB 相和脉冲方向热点分析；加载或运行失败时自动回退 TypeScript
+
+### Rust/WASM 开发
+
+普通开发和部署使用仓库内已生成的 `src/wasm/pkg`，运行 `npm run build` 不要求安装 Rust。
+
+修改 `wasm-core` 后需要 Rust 1.94.1、`wasm32-unknown-unknown` target，以及与 crate 固定版本一致的 `wasm-bindgen-cli 0.2.100`：
+
+```bash
+rustup target add wasm32-unknown-unknown
+cargo install wasm-bindgen-cli --version 0.2.100 --locked
+npm run wasm:rebuild
+npm test
+```
+
+`npm run wasm:check` 用于 CI 或提交前检查 Rust 源码与生成包是否同步。频率、加速度、抽稀和加减速分段也有 Rust 实验实现及等价/专项测试，但端到端基准显示其当前 WASM 适配成本高于现有 TypeScript 路径，因此未作为生产默认实现。
 
 ## 许可证
 

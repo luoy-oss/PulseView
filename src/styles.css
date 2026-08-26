@@ -205,6 +205,29 @@ body {
 .upload-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
 .upload-btn-alt { background: var(--teal); }
 
+.experimental-toggle {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  margin-top: 20px;
+  padding: 12px 14px;
+  text-align: left;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--surface) 88%, var(--bg));
+  cursor: pointer;
+}
+.experimental-toggle.enabled { border-color: color-mix(in srgb, var(--teal) 55%, var(--border)); }
+.experimental-toggle input { width: 16px; height: 16px; accent-color: var(--teal); }
+.experimental-toggle-copy { display: flex; min-width: 0; flex-direction: column; gap: 2px; }
+.experimental-toggle-copy strong { color: var(--text); font: 600 12px var(--fx); }
+.experimental-toggle-copy small { color: var(--text-3); font: 10px/1.45 var(--fx); }
+.experimental-status { color: var(--text-3); font: 600 10px var(--fx); white-space: nowrap; }
+.experimental-status.ready { color: var(--green); }
+.experimental-status.loading { color: var(--accent); }
+.experimental-status.error { color: var(--rose); }
+
 /* ===== AB PHASE ANALYSIS ===== */
 .ab-root { height: 100vh; background: var(--bg); display: flex; flex-direction: column; }
 .ab-analysis-root { min-height: 0; }

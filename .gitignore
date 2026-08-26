@@ -2,3 +2,5 @@ node_modules
 dist
 .vercel
 *.tsbuildinfo
+wasm-core/target
+src/wasm/.pkg-staging

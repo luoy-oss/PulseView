@@ -6,6 +6,7 @@ import {
   deriveEdgesFromTransitions,
   invertTransitionLevels,
   countPulsesFromTransitions,
+  detectAccelSegments,
 } from '../src/compute.ts';
 import { computeAcceleration, DEFAULT_ACCEL_OPTIONS } from '../src/acceleration.ts';
 
@@ -196,3 +197,11 @@ for (const algorithm of ['raw', 'sg', 'fft', 'kalman', 'td']) {
   assert.ok(acceleration.every((point) => Math.abs(point.value) < 1e-7), `${algorithm} must keep constant speed at zero acceleration`);
 }
 console.log('acceleration algorithm tests passed');
+
+const duplicateTimeSegments = detectAccelSegments([
+  { time: 1, freq: 10 },
+  { time: 1, freq: 20 },
+  { time: 1, freq: 30 },
+]);
+assert.deepEqual(duplicateTimeSegments, []);
+console.log('acceleration segment degenerate-time tests passed');

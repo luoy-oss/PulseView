@@ -1,4 +1,5 @@
-import { AbAnalysis, AbChannel, AbFreqPoint } from './types';
+import type { AbAnalysis, AbChannel, AbFreqPoint } from './types.ts';
+import { wasmComputeAbAnalysis } from './wasm/encoder.ts';
 
 // AB 位序为 A 在高位、B 在低位。A 超前 B 90° 时：
 // 00 → 10 → 11 → 01 → 00 为正向；反序为反向。
@@ -18,6 +19,10 @@ function getEdges(channel: AbChannel): { time: number; level: number }[] {
 }
 
 export function computeAbAnalysis(a: AbChannel, b: AbChannel): AbAnalysis {
+  return wasmComputeAbAnalysis(a, b, () => computeAbAnalysisTs(a, b));
+}
+
+function computeAbAnalysisTs(a: AbChannel, b: AbChannel): AbAnalysis {
   const aEdges = getEdges(a);
   const bEdges = getEdges(b);
   const changes = [
