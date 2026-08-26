@@ -26,7 +26,7 @@ export interface DerivPoint {
   value: number;
 }
 
-export type AccelAlgorithm = 'sg' | 'fft' | 'kalman' | 'td';
+export type AccelAlgorithm = 'raw' | 'sg' | 'fft' | 'kalman' | 'td';
 
 export interface AccelOptions {
   algorithm: AccelAlgorithm;

@@ -164,6 +164,9 @@ export function DerivView({
               <span className="deriv-dot accel" />
               加速度（频率变化率）
             </span>
+            {accelOptions.algorithm === 'raw' && (
+              <span className="accel-warning">不滤波状态下，加速度可能因波形抖动而产生剧烈变化</span>
+            )}
             <button
               className="deriv-close"
               title="关闭加速度图"
@@ -176,6 +179,7 @@ export function DerivView({
             <label>
               算法
               <select value={accelOptions.algorithm} onChange={(event) => updateAccelOption('algorithm', event.target.value as AccelAlgorithm)}>
+                <option value="raw">不滤波 + 中心差分</option>
                 <option value="sg">SG 平滑 + 中心差分</option>
                 <option value="fft">FFT 低通 + 中心差分</option>
                 <option value="kalman">卡尔曼状态估计</option>
@@ -195,7 +199,7 @@ export function DerivView({
             {accelOptions.algorithm === 'td' && <label>
               响应带宽 <input type="number" min="0.1" max="10000" step="1" value={accelOptions.tdBandwidth} onChange={(event) => updateAccelOption('tdBandwidth', Math.max(0.1, Math.min(10000, Number(event.target.value) || 0.1)))} /> s^-1
             </label>}
-            <span className="accel-chart-hint">{accelOptions.algorithm === 'sg' ? '保留峰值，推荐默认使用' : accelOptions.algorithm === 'fft' ? '离线低通，平滑最强' : accelOptions.algorithm === 'kalman' ? '根据噪声模型平滑估计' : '低延迟动态跟踪'}</span>
+            <span className="accel-chart-hint">{accelOptions.algorithm === 'raw' ? '直接反映原始波形变化' : accelOptions.algorithm === 'sg' ? '保留峰值，适合平滑分析' : accelOptions.algorithm === 'fft' ? '离线低通，平滑最强' : accelOptions.algorithm === 'kalman' ? '根据噪声模型平滑估计' : '低延迟动态跟踪'}</span>
           </div>
           <DerivSeriesChart
             pts={accel}

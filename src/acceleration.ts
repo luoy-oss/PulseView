@@ -1,7 +1,7 @@
 import type { AccelOptions, DerivPoint, FreqPoint } from './types';
 
 export const DEFAULT_ACCEL_OPTIONS: AccelOptions = {
-  algorithm: 'fft', sgWindow: 11, fftCutoffHz: 100,
+  algorithm: 'raw', sgWindow: 11, fftCutoffHz: 100,
   kalmanProcessNoise: 25, kalmanMeasurementNoise: 0.000001, tdBandwidth: 40,
 };
 
@@ -9,6 +9,7 @@ export function computeAcceleration(pts: FreqPoint[], options: AccelOptions = DE
   if (pts.length < 3) return [];
   if (options.algorithm === 'kalman') return kalman(pts, options);
   if (options.algorithm === 'td') return td(pts, options);
+  if (options.algorithm === 'raw') return differentiate(pts, Float64Array.from(pts, (point) => point.freq));
   const values = options.algorithm === 'fft' ? fftLowPass(pts, options.fftCutoffHz) : sgSmooth(pts, options.sgWindow);
   return differentiate(pts, values);
 }

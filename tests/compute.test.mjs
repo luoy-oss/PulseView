@@ -9,7 +9,7 @@ import {
 } from '../src/compute.ts';
 import { computeAcceleration, DEFAULT_ACCEL_OPTIONS } from '../src/acceleration.ts';
 
-assert.equal(DEFAULT_ACCEL_OPTIONS.algorithm, 'fft');
+assert.equal(DEFAULT_ACCEL_OPTIONS.algorithm, 'raw');
 assert.equal(DEFAULT_ACCEL_OPTIONS.fftCutoffHz, 100);
 assert.equal(DEFAULT_ACCEL_OPTIONS.kalmanMeasurementNoise, 0.000001);
 
@@ -183,7 +183,7 @@ assert.equal(countPulsesFromTransitions(invertedPhysicalLevels), 2);
 console.log('low-gap compute tests passed');
 
 const slopePoints = Array.from({ length: 61 }, (_, i) => ({ time: i * 0.02, freq: 100 + 12 * i * 0.02 }));
-for (const algorithm of ['sg', 'fft', 'kalman', 'td']) {
+for (const algorithm of ['raw', 'sg', 'fft', 'kalman', 'td']) {
   const acceleration = computeAcceleration(slopePoints, { ...DEFAULT_ACCEL_OPTIONS, algorithm });
   assert.equal(acceleration.length, slopePoints.length, `${algorithm} output length must match input`);
   assert.ok(acceleration.every((point) => Number.isFinite(point.value)), `${algorithm} must produce finite values`);
@@ -191,7 +191,7 @@ for (const algorithm of ['sg', 'fft', 'kalman', 'td']) {
 const sgSlope = computeAcceleration(slopePoints, { ...DEFAULT_ACCEL_OPTIONS, algorithm: 'sg' });
 assert.ok(Math.abs(sgSlope[30].value - 12) < 1e-8, 'SG central difference must retain a linear slope');
 const constantPoints = Array.from({ length: 30 }, (_, i) => ({ time: i * 0.1, freq: 500 }));
-for (const algorithm of ['sg', 'fft', 'kalman', 'td']) {
+for (const algorithm of ['raw', 'sg', 'fft', 'kalman', 'td']) {
   const acceleration = computeAcceleration(constantPoints, { ...DEFAULT_ACCEL_OPTIONS, algorithm });
   assert.ok(acceleration.every((point) => Math.abs(point.value) < 1e-7), `${algorithm} must keep constant speed at zero acceleration`);
 }
