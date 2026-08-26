@@ -3,6 +3,7 @@ import { AccelAlgorithm, AccelOptions, CursorMarker, FreqPoint, AccelSegment, Fr
 import { FreqChart } from './FreqChart';
 import { DerivSeriesChart } from './DerivSeriesChart';
 import { computeAcceleration, DEFAULT_ACCEL_OPTIONS } from '../acceleration';
+import { computeDerivatives } from '../compute';
 import { fmtRate } from '../utils';
 import { ViewRange } from '../decimate';
 import { ThemeId, THEME_COLORS } from '../theme';
@@ -73,7 +74,9 @@ export function DerivView({
   const [accelOptions, setAccelOptions] = useState<AccelOptions>(DEFAULT_ACCEL_OPTIONS);
   // 由频率-时间曲线派生的加速度曲线。
   const accel = useMemo(
-    () => computeAcceleration(allFreqPts, accelOptions),
+    accelOptions.algorithm === 'raw'
+      ? () => computeDerivatives(allFreqPts)
+      : () => computeAcceleration(allFreqPts, accelOptions),
     [allFreqPts, accelOptions]
   );
 
@@ -179,7 +182,7 @@ export function DerivView({
             <label>
               算法
               <select value={accelOptions.algorithm} onChange={(event) => updateAccelOption('algorithm', event.target.value as AccelAlgorithm)}>
-                <option value="raw">不滤波 + 中心差分</option>
+                <option value="raw">不滤波</option>
                 <option value="sg">SG 平滑 + 中心差分</option>
                 <option value="fft">FFT 低通 + 中心差分</option>
                 <option value="kalman">卡尔曼状态估计</option>
