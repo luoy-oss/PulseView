@@ -152,8 +152,8 @@ npm run build
 
 | 工作流 | 触发条件 | 作用 |
 | --- | --- | --- |
-| [CI](.github/workflows/ci.yml) | PR、推送到 `main` | 检查 Rust 格式与测试、WASM 生成物一致性、TS/WASM 等价测试和生产构建 |
-| [Deploy GitHub Pages](.github/workflows/pages.yml) | 推送到 `main`、手动运行 | 使用 `/PulseView/` 基础路径构建并发布 `dist/` |
+| [CI](.github/workflows/ci.yml) | PR、推送到 `main` | 检查 Rust 格式与测试、WASM 生成包加载验证、TS/WASM 等价测试和生产构建 |
+| [Deploy GitHub Pages](.github/workflows/pages.yml) | 推送到 `main`、手动运行 | 使用仓库名基础路径构建并发布 `dist/` |
 | [Release](.github/workflows/release.yml) | `v*.*.*` 标签、手动运行 | 完整测试后打包 `dist/` 并创建 GitHub Release |
 
 Release 标签必须与 `package.json` 的版本一致。例如准备正式版 `3.4.0`：
@@ -169,44 +169,14 @@ git push origin v3.4.0
 
 Release workflow 支持标准 SemVer 预发布版本。只要 `package.json` 的版本包含 `-` 后缀，GitHub Release 就会自动标记为 **Pre-release**，不会作为最新正式版发布。
 
-当前正式版本为 `3.4.0`。如需发布带后缀的测试版本，仍可按下方示例使用预发布标签：
+例如：
 
 ```bash
-git tag v3.4.0-beta.1
-git push origin v3.4.0-beta.1
-```
-
-```bash
-# Alpha：内部或早期测试
-npm version 3.4.0-alpha.1 --no-git-tag-version
-git add package.json package-lock.json
-git commit -m "chore: prepare v3.4.0-alpha.1"
-git tag v3.4.0-alpha.1
-git push origin main v3.4.0-alpha.1
-
-# 后续 Beta
 npm version 3.4.0-beta.1 --no-git-tag-version
 git add package.json package-lock.json
 git commit -m "chore: prepare v3.4.0-beta.1"
 git tag v3.4.0-beta.1
 git push origin main v3.4.0-beta.1
-
-# 发布候选版
-npm version 3.4.0-rc.1 --no-git-tag-version
-git add package.json package-lock.json
-git commit -m "chore: prepare v3.4.0-rc.1"
-git tag v3.4.0-rc.1
-git push origin main v3.4.0-rc.1
-```
-
-测试完成后，将版本改为不带后缀的正式版本并创建对应标签：
-
-```bash
-npm version 3.4.0 --no-git-tag-version
-git add package.json package-lock.json
-git commit -m "chore: prepare v3.4.0"
-git tag v3.4.0
-git push origin main v3.4.0
 ```
 
 版本识别规则：
@@ -317,7 +287,7 @@ npm run wasm:rebuild
 npm test
 ```
 
-`npm run wasm:check` 用于 CI 或提交前检查 Rust 源码与生成包是否同步。频率、加速度、抽稀和加减速分段也有 Rust 实验实现及等价/专项测试，但端到端基准显示其当前 WASM 适配成本高于现有 TypeScript 路径，因此未作为生产默认实现。
+`npm run wasm:check` 用于 CI 或提交前重新生成并验证 WASM 包可以加载、关键导出存在。由于 `wasm-bindgen` 在不同操作系统上生成文件的顺序和二进制布局可能不同，检查不会进行跨平台字节级 diff；生成后请运行 `npm test` 验证行为等价。频率、加速度、抽稀和加减速分段也有 Rust 实验实现及等价/专项测试，但端到端基准显示其当前 WASM 适配成本高于现有 TypeScript 路径，因此未作为生产默认实现。
 
 ## 许可证
 
