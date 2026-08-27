@@ -77,7 +77,7 @@ pub fn compute_stats_values(frequencies: &[f64]) -> Vec<f64> {
 
 /// Returns [minimum, maximum, bin_count] or an empty vector for empty/constant input.
 #[wasm_bindgen]
-pub fn compute_histogram_meta(frequencies: &[f64], min_bins: u32, max_bins: u32) -> Vec<f64> {
+pub fn compute_histogram_meta(frequencies: &[f64], min_bins: i32, max_bins: i32) -> Vec<f64> {
     if frequencies.is_empty() {
         return Vec::new();
     }
@@ -90,7 +90,9 @@ pub fn compute_histogram_meta(frequencies: &[f64], min_bins: u32, max_bins: u32)
     if maximum - minimum == 0.0 {
         return Vec::new();
     }
-    let estimated = (1.0 + 3.322 * (frequencies.len() as f64).log10()).ceil() as u32;
+    // 与 TypeScript 的 Math.max(minBins, Math.min(maxBins, ceil)) 完全一致，
+    // 允许负数参数并保持相同边界语义。
+    let estimated = (1.0 + 3.322 * (frequencies.len() as f64).log10()).ceil() as i32;
     let count = estimated.min(max_bins).max(min_bins);
     vec![minimum, maximum, count as f64]
 }
@@ -100,19 +102,26 @@ pub fn compute_histogram_counts(
     frequencies: &[f64],
     minimum: f64,
     maximum: f64,
-    bin_count: u32,
+    bin_count: i32,
 ) -> Vec<u32> {
-    if bin_count == 0 || maximum - minimum == 0.0 {
+    if bin_count <= 0 || maximum - minimum == 0.0 {
         return Vec::new();
     }
-    let mut bins = vec![0_u32; bin_count as usize];
+    let count = bin_count as usize;
+    let mut bins = vec![0_u32; count];
     let width = (maximum - minimum) / bin_count as f64;
     for &frequency in frequencies {
+        // 复刻 TypeScript：NaN/±Infinity 落桶结果为 NaN 索引，JavaScript 只会给
+        // 数组设置字符串属性而不会累加任何数值桶；负数索引同样不会累加。
+        // 因此这里直接跳过非有限值与负索引，保持与 TS 返回数组完全一致。
         let raw = ((frequency - minimum) / width).floor();
-        let index = if raw.is_sign_negative() {
-            0
+        if raw.is_nan() || raw < 0.0 {
+            continue;
+        }
+        let index = if raw >= bin_count as f64 {
+            count - 1
         } else {
-            (raw as usize).min(bins.len() - 1)
+            raw as usize
         };
         bins[index] += 1;
     }
@@ -165,13 +174,16 @@ pub fn compute_frequency_points(
         let tolerance = low_gap_tolerance_pct.max(0.0) / 100.0;
         for k in first_fall + 1..falls.len() {
             let period = trans_times[falls[k]] - trans_times[falls[k - 1]];
-            let Some(&rise) = rises.get(k - first_fall) else {
-                continue;
-            };
-            if period <= 0.0 || rise >= falls[k] {
+            let rise = rises.get(k - first_fall).copied();
+            // TypeScript 中 rises[k - f0] 越界时为 undefined：
+            // `undefined >= falls[k]` 为 false，因此不会 continue，而是继续
+            // 用 NaN 宽度产出 freq=NaN 的点。这里精确复刻该行为。
+            if period <= 0.0 || rise.is_some_and(|r| r >= falls[k]) {
                 continue;
             }
-            let width = trans_times[falls[k]] - trans_times[rise];
+            let width = rise
+                .map(|r| trans_times[falls[k]] - trans_times[r])
+                .unwrap_or(f64::NAN);
             if width <= 0.0 {
                 continue;
             }
@@ -340,7 +352,9 @@ pub fn compute_frequency_points(
             let p = if edge_base == 0 {
                 match (falls.get(k), falls.get(k - 1)) {
                     (Some(a), Some(b)) => trans_times[*a] - trans_times[*b],
-                    _ => 2.0 * width,
+                    // TypeScript 通过越界下标得到 NaN（undefined - undefined），
+                    // 这里用 NaN 精确复刻，而不是回退成有限值。
+                    _ => f64::NAN,
                 }
             } else {
                 trans_times[rises[k]] - trans_times[rises[k - 1]]

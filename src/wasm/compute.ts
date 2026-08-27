@@ -135,13 +135,16 @@ export function wasmComputeHistogram(
       const [minimum, maximum, rawCount] = meta;
       const binCount = Math.trunc(rawCount);
       const width = (maximum - minimum) / binCount;
-      const labels = Array.from({ length: binCount }, (_, index) => {
+      // 与 TypeScript 的 new Array(binCount) 一致：负数桶数同样抛 RangeError，
+      // 而不是被 Array.from 静默截断为 0。
+      const labels = new Array<string>(binCount);
+      for (let index = 0; index < binCount; index++) {
         const frequency = minimum + (index + 0.5) * width;
-        if (frequency >= 1e9) return `${(frequency / 1e9).toFixed(2)}G`;
-        if (frequency >= 1e6) return `${(frequency / 1e6).toFixed(2)}M`;
-        if (frequency >= 1e3) return `${(frequency / 1e3).toFixed(2)}k`;
-        return frequency.toFixed(2);
-      });
+        if (frequency >= 1e9) labels[index] = `${(frequency / 1e9).toFixed(2)}G`;
+        else if (frequency >= 1e6) labels[index] = `${(frequency / 1e6).toFixed(2)}M`;
+        else if (frequency >= 1e3) labels[index] = `${(frequency / 1e3).toFixed(2)}k`;
+        else labels[index] = frequency.toFixed(2);
+      }
       return { labels, bins: Array.from(wasm.compute_histogram_counts(values, minimum, maximum, binCount)) };
     },
     (ts, result) => {

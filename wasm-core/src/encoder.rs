@@ -143,23 +143,53 @@ pub fn compute_ab_analysis_batch(
             b_by_level[b_levels[index] as usize].push(b_times[index]);
         }
     }
-    let mut cursors = [0_usize, 0_usize];
     let mut phases = Vec::new();
-    // Each cursor only advances, making nearest same-level matching O(A+B).
+    // 与 TypeScript 的全量扫描语义一致：对每个 A 边沿，取同电平候选里
+    // 距离最近且最先出现的那个。候选按时间升序，先二分插入点，再在等距
+    // 时向左取第一个同值元素，精确复刻 TS 的“第一个最近”决胜规则。
     for index in 1..a_len {
         let level = a_levels[index];
-        if !matches!(level, 0 | 1) || b_by_level[level as usize].is_empty() {
+        if !matches!(level, 0 | 1) {
             continue;
         }
         let candidates = &b_by_level[level as usize];
-        let cursor = &mut cursors[level as usize];
-        while *cursor + 1 < candidates.len()
-            && (candidates[*cursor + 1] - a_times[index]).abs()
-                < (candidates[*cursor] - a_times[index]).abs()
-        {
-            *cursor += 1;
+        if candidates.is_empty() {
+            continue;
         }
-        phases.push(candidates[*cursor] - a_times[index]);
+        let target = a_times[index];
+        let len = candidates.len();
+        let mut lower = 0_usize;
+        let mut upper = len;
+        while lower < upper {
+            let middle = (lower + upper) / 2;
+            if candidates[middle] < target {
+                lower = middle + 1;
+            } else {
+                upper = middle;
+            }
+        }
+        let insertion = lower;
+        let left_distance = if insertion > 0 {
+            (candidates[insertion - 1] - target).abs()
+        } else {
+            f64::INFINITY
+        };
+        let right_distance = if insertion < len {
+            (candidates[insertion] - target).abs()
+        } else {
+            f64::INFINITY
+        };
+        // 等距时选左侧（更小的下标），与 TS 扫描顺序一致。
+        let (value, chosen_position) = if left_distance <= right_distance {
+            (candidates[insertion - 1], insertion - 1)
+        } else {
+            (candidates[insertion], insertion)
+        };
+        let mut first = chosen_position;
+        while first > 0 && candidates[first - 1] == value {
+            first -= 1;
+        }
+        phases.push(candidates[first] - target);
     }
 
     let mut periods = Vec::new();

@@ -287,7 +287,7 @@ npm run wasm:rebuild
 npm test
 ```
 
-`npm run wasm:check` 用于 CI 或提交前重新生成并验证 WASM 包可以加载、关键导出存在。由于 `wasm-bindgen` 在不同操作系统上生成文件的顺序和二进制布局可能不同，检查不会进行跨平台字节级 diff；生成后请运行 `npm test` 验证行为等价。频率、加速度、抽稀和加减速分段也有 Rust 实验实现及等价/专项测试，但端到端基准显示其当前 WASM 适配成本高于现有 TypeScript 路径，因此未作为生产默认实现。
+`npm run wasm:check` 用于 CI 或提交前重新生成并验证 WASM 包可以加载、关键导出存在。由于 `wasm-bindgen` 在不同操作系统上生成文件的顺序和二进制布局可能不同，检查不会进行跨平台字节级 diff；`npm test` 中的差分等价套件（`tests/wasmDifferential.test.mjs`）会用确定性随机种子把 Rust/WASM 与 TypeScript 逐模块、逐字段比对，覆盖 NaN/±Infinity、重复与乱序时间戳、非二进制电平、负数分箱参数及全部选项组合，任何不一致都会使测试失败。频率、加速度、抽稀和加减速分段也有 Rust 实验实现及等价/专项测试，但端到端基准显示其当前 WASM 适配成本高于现有 TypeScript 路径，因此未作为生产默认实现。
 
 ## 许可证
 

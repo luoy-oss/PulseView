@@ -88,3 +88,25 @@ fn direction_handles_sparse_signal_unknowns_and_duplicate_pulses() {
     assert_eq!(unknown_and_duplicate[4], 1.0);
     assert!(unknown_and_duplicate.iter().all(|value| value.is_finite()));
 }
+
+#[test]
+fn ab_nearest_phase_skips_leading_duplicate_ties_like_typescript() {
+    // B 在电平 1 上有重复时间戳 0.35,0.35，之后才有更接近的候选。
+    // TypeScript 全量扫描会选真正最近的 1.0；旧的单调游标会被等距重复卡住。
+    let result = compute_ab_analysis_batch(
+        &[0.0, 2.0, 4.0, 6.0, 8.0],
+        &[0, 1, 0, 1, 0],
+        &[0.0, 0.35, 0.35, 1.0, 3.0, 5.0, 7.0],
+        &[0, 1, 1, 1, 1, 1, 1],
+    );
+    // A 的两个电平 1 边沿（t=2 与 t=6）最近候选均为 1.0/5.0，相位各为 -1.0，
+    // meanPhase（header[10]）= -1.0；旧游标会被开头等距重复 0.35 卡住。
+    close(result[10], -1.0);
+}
+
+#[test]
+fn ab_nearest_phase_picks_first_equal_candidate_like_typescript() {
+    // 目标 1.5 与候选 1.0、2.0 距离相等：TS 选先出现的 1.0。
+    let result = compute_ab_analysis_batch(&[0.0, 1.5], &[0, 1], &[0.0, 1.0, 2.0], &[0, 1, 1]);
+    close(result[10], 1.0 - 1.5);
+}
