@@ -1225,3 +1225,203 @@ body {
     bottom: 12px;
   }
 }
+/* ===== 首页模式按钮悬停提示 ===== */
+.mode-btn {
+  position: relative;
+}
+.mode-btn::after {
+  content: attr(data-tip);
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 10px);
+  transform: translateX(-50%) translateY(4px);
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: var(--text);
+  color: var(--bg);
+  font: 500 11px/1.5 var(--fx);
+  white-space: nowrap;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.28);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  z-index: 6;
+}
+.mode-btn:hover::after,
+.mode-btn:focus-visible::after {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* ===== 首页文件校验面板（悬浮于 overlay 右侧，不改动 upload-card） ===== */
+.upload-check {
+  position: absolute;
+  top: 74px;
+  right: 24px;
+  width: 300px;
+  max-height: calc(100vh - 110px);
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px 16px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12);
+  text-align: left;
+  z-index: 2;
+}
+.upload-check h2 {
+  font: 600 14px var(--fx);
+  color: var(--text);
+  margin-bottom: 6px;
+}
+.upload-check-sub {
+  font-size: 12px;
+  color: var(--text-3);
+  line-height: 1.6;
+  margin-bottom: 14px;
+}
+.upload-check-btn {
+  width: 100%;
+}
+.upload-check-status {
+  margin-top: 14px;
+  font-size: 12px;
+  color: var(--text-2);
+}
+.check-idle {
+  color: var(--text-3);
+}
+.check-progress {
+  color: var(--accent);
+}
+.check-result-title {
+  font: 600 13px var(--fx);
+  margin-bottom: 4px;
+}
+.check-ok .check-result-title {
+  color: var(--green);
+}
+.check-fail .check-result-title {
+  color: var(--rose);
+}
+.check-metrics {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 14px;
+  margin: 10px 0;
+  font-size: 12px;
+}
+.check-metrics dt {
+  color: var(--text-3);
+}
+.check-metrics dd {
+  color: var(--text);
+  text-align: right;
+  font-family: var(--fm);
+}
+.check-file-name {
+  margin-top: 6px;
+  color: var(--text-3);
+  font-size: 11px;
+  word-break: break-all;
+}
+.check-reason {
+  margin: 8px 0 12px;
+  color: var(--rose);
+  background: color-mix(in srgb, var(--rose) 10%, transparent);
+  border-radius: 6px;
+  padding: 8px 10px;
+  line-height: 1.5;
+}
+
+@media (max-width: 860px) {
+  .upload-check {
+    top: 64px;
+    right: 16px;
+    width: min(300px, calc(100vw - 32px));
+  }
+}
+
+
+/* ===== 解析失败模态弹窗 ===== */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(4px);
+}
+.modal-card {
+  position: relative;
+  width: min(540px, 100%);
+  max-height: calc(100vh - 48px);
+  overflow: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 24px 26px;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.35);
+}
+.modal-close {
+  position: absolute;
+  top: 12px;
+  right: 14px;
+  background: none;
+  border: none;
+  color: var(--text-3);
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+}
+.modal-card h2 {
+  font: 600 18px var(--fx);
+  color: var(--rose);
+  margin-bottom: 10px;
+}
+.modal-file {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font: 500 13px var(--fx);
+  color: var(--text);
+  word-break: break-all;
+  margin-bottom: 10px;
+}
+.modal-format {
+  flex-shrink: 0;
+  background: var(--border);
+  color: var(--text-2);
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 11px;
+}
+.modal-error {
+  background: color-mix(in srgb, var(--rose) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--rose) 30%, transparent);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font: 12px/1.5 var(--fm);
+  color: var(--rose);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 180px;
+  overflow: auto;
+  margin-bottom: 12px;
+}
+.modal-hint {
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--text-2);
+  margin-bottom: 18px;
+}
+.modal-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}

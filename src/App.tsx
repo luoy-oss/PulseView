@@ -19,6 +19,25 @@ import SaleaeWorker from './workers/saleaeParser.ts?worker';
 import { AbAnalysisView } from './components/AbAnalysisView';
 import { getInitialTheme, ThemeId } from './theme';
 import { disableWasm, initializeWasm } from './wasm/runtime.ts';
+import { ParseFailureModal } from './components/ParseFailureModal';
+import type { FileCheckResult } from './components/FileCheckPanel';
+
+type WorkerProgress = { type: 'progress'; sampleCount: number };
+type WorkerError = { type: 'error'; message: string };
+type WorkerDoneAb = { type: 'done-ab'; channels: AbChannel[]; samplingRate: number; sampleCount: number };
+type WorkerDone = {
+  type: 'done';
+  freqPts?: FreqPoint[];
+  risingEdges: Float64Array;
+  fallingEdges: Float64Array;
+  transTimes: Float64Array | null;
+  transLevels: Int8Array | null;
+  samplingRate: number;
+  sampleCount: number;
+  pulseCount?: number;
+  format: 'vcd' | 'txt' | 'sr' | 'saleae';
+  channels?: CsvChannel[];
+};
 
 const initialState: AppState = {
   samplingRate: 0,
@@ -106,6 +125,7 @@ export function App() {
   const [theme, setTheme] = useState<ThemeId>(getInitialTheme);
   const [experimentalAccelerationEnabled, setExperimentalAccelerationEnabled] = useState(false);
   const [experimentalAccelerationStatus, setExperimentalAccelerationStatus] = useState<'off' | 'loading' | 'ready' | 'error'>('off');
+  const [failure, setFailure] = useState<{ fileName: string; format: string; error: string } | null>(null);
   const workerRef = useRef<Worker | null>(null);
   const wasmRequestRef = useRef(0);
 
@@ -143,153 +163,211 @@ export function App() {
     }
   }, [sidebarStats]);
 
+  // 后台解析：返回成功数据或抛出错误，供正式分析与文件校验复用
+  const runWorkerParse = useCallback(
+    (file: File, mode: 'normal' | 'ab' | 'direction', onProgress: (message: string) => void) =>
+      new Promise<{ kind: 'ab'; data: WorkerDoneAb } | { kind: 'normal'; data: WorkerDone }>((resolve, reject) => {
+        const format = detectFormat(file);
+        onProgress('读取文件…');
+        file.arrayBuffer().then((buf) => {
+          onProgress('解析数据中…');
+          if (workerRef.current) {
+            workerRef.current.terminate();
+          }
+          const worker =
+            format === 'vcd'
+              ? new VcdWorker()
+              : format === 'sr'
+                ? new SrWorker()
+                : format === 'saleae'
+                  ? new SaleaeWorker()
+                  : new TxtWorker();
+          workerRef.current = worker;
+          worker.onmessage = (e) => {
+            const d = e.data as WorkerDoneAb | WorkerDone | WorkerProgress | WorkerError;
+            if (d.type === 'progress') {
+              onProgress('已解析 ' + d.sampleCount.toLocaleString() + ' 个采样点…');
+            } else if (d.type === 'error') {
+              reject(new Error(d.message));
+            } else if (d.type === 'done-ab') {
+              resolve({ kind: 'ab', data: d });
+            } else if (d.type === 'done') {
+              resolve({ kind: 'normal', data: d });
+            }
+          };
+          worker.onerror = (err) => reject(new Error(err.message));
+          worker.postMessage({ type: 'parse', buffer: buf, mode }, [buf]);
+        }).catch(reject);
+      }),
+    []
+  );
+
   const handleFile = useCallback((file: File, mode: 'normal' | 'ab' | 'direction' = 'normal') => {
-    const format = detectFormat(file);
     setParsing(true);
     setParseProgress('读取文件…');
-
-    file.arrayBuffer().then((buf) => {
-      setParseProgress('解析数据中…');
-
-      if (workerRef.current) {
-        workerRef.current.terminate();
-      }
-
-      const worker =
-        format === 'vcd'
-          ? new VcdWorker()
-          : format === 'sr'
-            ? new SrWorker()
-            : format === 'saleae'
-              ? new SaleaeWorker()
-              : new TxtWorker();
-      workerRef.current = worker;
-
-      worker.onmessage = (e) => {
-        const d = e.data;
-        if (d.type === 'progress') {
-          setParseProgress(`已解析 ${d.sampleCount.toLocaleString()} 个采样点…`);
-        } else if (d.type === 'error') {
-          alert('解析出错：' + d.message);
-          setParsing(false);
-        } else if (d.type === 'done-ab') {
-          setAbChannels(d.channels as AbChannel[]);
+    runWorkerParse(file, mode, setParseProgress)
+      .then((outcome) => {
+        if (outcome.kind === 'ab') {
+          const d = outcome.data;
+          setAbChannels(d.channels);
           setAbSamplingRate(d.samplingRate);
           setAbFileName(file.name);
           setEncoderMode(mode === 'direction' ? 'direction' : 'ab');
           setParsing(false);
           return;
-        } else if (d.type === 'done') {
-          if (d.freqPts) {
-            // PWM 测量导出：频率/占空比/时间直接来自文件测量值（精度最高），
-            // 无需边沿重建；transTimes/transLevels 置空使模式切换不重算
-            const samplingRate: number = d.samplingRate;
-            const freqPts: FreqPoint[] = d.freqPts;
-            const fmt: 'vcd' | 'txt' | 'sr' | 'saleae' = d.format;
-            const channels: CsvChannel[] = d.channels ?? [];
-            if (!samplingRate || freqPts.length === 0) {
-              alert('文件中未找到可用的 PWM 频率测量，请检查文件格式。');
-              setParsing(false);
-              return;
-            }
-            setState({
-              ...initialState,
-              samplingRate,
-              sampleCount: d.sampleCount,
-              pulseCount: d.pulseCount ?? 0,
-              allFreqPts: freqPts,
-              freqPts,
-              fileName: file.name,
-              format: fmt,
-              channels,
-              activeChannelId: channels[0]?.id ?? null,
-            });
+        }
+        const d = outcome.data;
+        if (d.freqPts) {
+          // PWM 测量导出：频率/占空比/时间直接来自文件测量值（精度最高），
+          // 无需边沿重建；transTimes/transLevels 置空使模式切换不重算
+          const samplingRate = d.samplingRate;
+          const freqPts = d.freqPts;
+          const fmt = d.format;
+          const channels = d.channels ?? [];
+          if (!samplingRate || freqPts.length === 0) {
+            setFailure({ fileName: file.name, format: fmt, error: '文件中未找到可用的 PWM 频率测量，请检查文件格式。' });
             setParsing(false);
             return;
           }
-          const risingEdges: Float64Array = d.risingEdges;
-          const fallingEdges: Float64Array = d.fallingEdges;
-          const transTimes: Float64Array = d.transTimes;
-          const transLevels: Int8Array = d.transLevels;
-          const samplingRate: number = d.samplingRate;
-          const sampleCount: number = d.sampleCount;
-          const fmt: 'vcd' | 'txt' | 'sr' | 'saleae' = d.format;
-          const channels: CsvChannel[] = d.channels ?? [];
-
-          if (!samplingRate) {
-            alert('文件头中未找到采样频率，请检查文件格式。');
-            setParsing(false);
-            return;
-          }
-          if (!transTimes || transTimes.length < 3) {
-            alert('未检测到足够的信号跳变（至少需要 3 个跳变），请检查文件格式。');
-            setParsing(false);
-            return;
-          }
-
-          setState((prev) => {
-            const defaultLevel = transLevels[0] as DefaultLevel;
-            const logicalLevels = prev.pulseLevel === 'low'
-              ? invertTransitionLevels(transLevels)
-              : transLevels;
-            const logicalEdges = deriveEdgesFromTransitions(transTimes, logicalLevels);
-
-            const logicalDefaultLevel = prev.pulseLevel === 'low'
-              ? (defaultLevel === 1 ? 0 : 1)
-              : defaultLevel;
-            const pulseCount = countPulsesFromTransitions(logicalLevels);
-
-            // 按用户当前选择的频率计算模式、占空比修正与基准边沿生成频率点
-            const allPts = computeFreqFromTransitions(
-              transTimes,
-              logicalLevels,
-              fmt,
-              prev.freqMode,
-              prev.dutyCorrect,
-              prev.edgeBase,
-              prev.lowGapToleranceEnabled,
-              prev.lowGapTolerancePct,
-              logicalDefaultLevel
-            );
-            return {
-              ...initialState,
-              freqMode: prev.freqMode,
-              dutyCorrect: prev.dutyCorrect,
-              edgeBase: prev.edgeBase,
-              lowGapToleranceEnabled: prev.lowGapToleranceEnabled,
-              lowGapTolerancePct: prev.lowGapTolerancePct,
-              lowGapAnnotationEnabled: prev.lowGapAnnotationEnabled,
-              lowGapThreshold: prev.lowGapThreshold,
-              samplingRate,
-              sampleCount,
-              pulseCount,
-              risingEdges: logicalEdges.risingEdges,
-              fallingEdges: logicalEdges.fallingEdges,
-              transTimes,
-              transLevels: logicalLevels,
-              sourceTransLevels: transLevels,
-              allFreqPts: allPts,
-              freqPts: allPts,
-              fileName: file.name,
-              format: fmt,
-              channels,
-              activeChannelId: channels[0]?.id ?? null,
-              pulseLevel: prev.pulseLevel,
-              defaultLevel,
-            };
+          setState({
+            ...initialState,
+            samplingRate,
+            sampleCount: d.sampleCount,
+            pulseCount: d.pulseCount ?? 0,
+            allFreqPts: freqPts,
+            freqPts,
+            fileName: file.name,
+            format: fmt,
+            channels,
+            activeChannelId: channels[0]?.id ?? null,
           });
           setParsing(false);
+          return;
         }
-      };
+        const risingEdges = d.risingEdges;
+        const fallingEdges = d.fallingEdges;
+        const transTimes = d.transTimes;
+        const transLevels = d.transLevels;
+        const samplingRate = d.samplingRate;
+        const sampleCount = d.sampleCount;
+        const fmt = d.format;
+        const channels = d.channels ?? [];
 
-      worker.onerror = (err) => {
-        alert('解析出错：' + err.message);
+        if (!samplingRate) {
+          setFailure({ fileName: file.name, format: fmt, error: '文件头中未找到采样频率，请检查文件格式。' });
+          setParsing(false);
+          return;
+        }
+        if (!transTimes || !transLevels || transTimes.length < 3) {
+          setFailure({ fileName: file.name, format: fmt, error: '未检测到足够的信号跳变（至少需要 3 个跳变），请检查文件格式。' });
+          setParsing(false);
+          return;
+        }
+
+        setState((prev) => {
+          const defaultLevel = transLevels[0] as DefaultLevel;
+          const logicalLevels = prev.pulseLevel === 'low'
+            ? invertTransitionLevels(transLevels)
+            : transLevels;
+          const logicalEdges = deriveEdgesFromTransitions(transTimes, logicalLevels);
+
+          const logicalDefaultLevel = prev.pulseLevel === 'low'
+            ? (defaultLevel === 1 ? 0 : 1)
+            : defaultLevel;
+          const pulseCount = countPulsesFromTransitions(logicalLevels);
+
+          // 按用户当前选择的频率计算模式、占空比修正与基准边沿生成频率点
+          const allPts = computeFreqFromTransitions(
+            transTimes,
+            logicalLevels,
+            fmt,
+            prev.freqMode,
+            prev.dutyCorrect,
+            prev.edgeBase,
+            prev.lowGapToleranceEnabled,
+            prev.lowGapTolerancePct,
+            logicalDefaultLevel
+          );
+          return {
+            ...initialState,
+            freqMode: prev.freqMode,
+            dutyCorrect: prev.dutyCorrect,
+            edgeBase: prev.edgeBase,
+            lowGapToleranceEnabled: prev.lowGapToleranceEnabled,
+            lowGapTolerancePct: prev.lowGapTolerancePct,
+            lowGapAnnotationEnabled: prev.lowGapAnnotationEnabled,
+            lowGapThreshold: prev.lowGapThreshold,
+            samplingRate,
+            sampleCount,
+            pulseCount,
+            risingEdges: logicalEdges.risingEdges,
+            fallingEdges: logicalEdges.fallingEdges,
+            transTimes,
+            transLevels: logicalLevels,
+            sourceTransLevels: transLevels,
+            allFreqPts: allPts,
+            freqPts: allPts,
+            fileName: file.name,
+            format: fmt,
+            channels,
+            activeChannelId: channels[0]?.id ?? null,
+            pulseLevel: prev.pulseLevel,
+            defaultLevel,
+          };
+        });
         setParsing(false);
-      };
+      })
+      .catch((error: unknown) => {
+        const message = error instanceof Error ? error.message : String(error);
+        setFailure({ fileName: file.name, format: detectFormat(file), error: message });
+        setParsing(false);
+      });
+  }, [runWorkerParse]);
 
-      worker.postMessage({ type: 'parse', buffer: buf, mode }, [buf]);
-    });
-  }, []);
+  // 首页“检验文件是否可分析”：后台完整解析并返回结果摘要
+  const checkFile = useCallback(
+    async (file: File, onProgress: (message: string) => void): Promise<FileCheckResult> => {
+      const outcome = await runWorkerParse(file, 'normal', onProgress);
+      if (outcome.kind === 'ab') {
+        const d = outcome.data;
+        return {
+          ok: true,
+          format: 'vcd',
+          samplingRate: d.samplingRate,
+          sampleCount: d.sampleCount,
+        };
+      }
+      const d = outcome.data;
+      const fmt = d.format;
+      if (d.freqPts) {
+        if (!d.samplingRate || d.freqPts.length === 0) {
+          return { ok: false, format: fmt, reason: '文件中未找到可用的频率测量数据。' };
+        }
+        return {
+          ok: true,
+          format: fmt,
+          samplingRate: d.samplingRate,
+          sampleCount: d.sampleCount,
+          pointCount: d.freqPts.length,
+        };
+      }
+      if (!d.samplingRate) {
+        return { ok: false, format: fmt, reason: '文件头中未找到采样频率。' };
+      }
+      if (!d.transTimes || !d.transLevels || d.transTimes.length < 3) {
+        return { ok: false, format: fmt, reason: '未检测到足够的信号跳变（至少需要 3 个跳变）。' };
+      }
+      const pointCount = computeFreqFromTransitions(d.transTimes, d.transLevels, fmt, 'falling').length;
+      return {
+        ok: true,
+        format: fmt,
+        samplingRate: d.samplingRate,
+        sampleCount: d.sampleCount,
+        pointCount,
+      };
+    },
+    [runWorkerParse]
+  );
 
   const selectChannel = useCallback((channelId: string) => {
     setState((prev) => {
@@ -604,45 +682,56 @@ export function App() {
     }));
   }, []);
 
+  let screen: JSX.Element;
   if (abChannels && !parsing) {
-    return <AbAnalysisView channels={abChannels} fileName={abFileName} samplingRate={abSamplingRate} initialMode={encoderMode} onFile={handleFile} theme={theme} onThemeChange={setTheme} sidebarStats={sidebarStats} onSidebarStatsChange={setSidebarStats} />;
-  }
-
-  if (!state.samplingRate && !parsing) {
-    return <UploadScreen onFile={handleFile} theme={theme} onThemeChange={setTheme} experimentalAccelerationEnabled={experimentalAccelerationEnabled} experimentalAccelerationStatus={experimentalAccelerationStatus} onExperimentalAccelerationChange={updateExperimentalAcceleration} />;
-  }
-
-  if (parsing) {
-    return <UploadScreen onFile={handleFile} progress={parseProgress} theme={theme} onThemeChange={setTheme} experimentalAccelerationEnabled={experimentalAccelerationEnabled} experimentalAccelerationStatus={experimentalAccelerationStatus} onExperimentalAccelerationChange={updateExperimentalAcceleration} />;
+    screen = <AbAnalysisView channels={abChannels} fileName={abFileName} samplingRate={abSamplingRate} initialMode={encoderMode} onFile={handleFile} theme={theme} onThemeChange={setTheme} sidebarStats={sidebarStats} onSidebarStatsChange={setSidebarStats} />;
+  } else if (!state.samplingRate && !parsing) {
+    screen = <UploadScreen onFile={handleFile} onCheckFile={checkFile} onOpenFailure={setFailure} theme={theme} onThemeChange={setTheme} experimentalAccelerationEnabled={experimentalAccelerationEnabled} experimentalAccelerationStatus={experimentalAccelerationStatus} onExperimentalAccelerationChange={updateExperimentalAcceleration} />;
+  } else if (parsing) {
+    screen = <UploadScreen onFile={handleFile} onCheckFile={checkFile} onOpenFailure={setFailure} progress={parseProgress} theme={theme} onThemeChange={setTheme} experimentalAccelerationEnabled={experimentalAccelerationEnabled} experimentalAccelerationStatus={experimentalAccelerationStatus} onExperimentalAccelerationChange={updateExperimentalAcceleration} />;
+  } else {
+    screen = (
+      <AppShell
+        state={state}
+        theme={theme}
+        onThemeChange={setTheme}
+        sidebarStats={sidebarStats}
+        onSidebarStatsChange={setSidebarStats}
+        onFile={handleFile}
+        onFreqModeChange={updateFreqMode}
+        channels={state.channels}
+        activeChannelId={state.activeChannelId}
+        onChannelChange={selectChannel}
+        onDutyCorrectChange={updateDutyCorrect}
+        onEdgeBaseChange={updateEdgeBase}
+        onPulseLevelChange={(pulseLevel) => updateWaveformInterpretation(pulseLevel, state.defaultLevel)}
+        onDefaultLevelChange={(defaultLevel) => updateWaveformInterpretation(state.pulseLevel, defaultLevel)}
+        onLowGapToleranceChange={updateLowGapTolerance}
+        onLowGapAnnotationChange={updateLowGapAnnotation}
+        onAccelDetect={updateAccelSegs}
+        onCursorChange={updateCursor}
+        onCursorMarkersChange={updateCursorMarkers}
+        onCursorPairChange={updateCursorPair}
+        onRangeModeChange={setRangeMode}
+        onRangeChange={setRange}
+        onClearRange={clearRange}
+        onToggleDerivView={toggleDerivView}
+        onToggleChart={toggleChartVisible}
+      />
+    );
   }
 
   return (
-    <AppShell
-      state={state}
-      theme={theme}
-      onThemeChange={setTheme}
-      sidebarStats={sidebarStats}
-      onSidebarStatsChange={setSidebarStats}
-      onFile={handleFile}
-      onFreqModeChange={updateFreqMode}
-      channels={state.channels}
-      activeChannelId={state.activeChannelId}
-      onChannelChange={selectChannel}
-      onDutyCorrectChange={updateDutyCorrect}
-      onEdgeBaseChange={updateEdgeBase}
-      onPulseLevelChange={(pulseLevel) => updateWaveformInterpretation(pulseLevel, state.defaultLevel)}
-      onDefaultLevelChange={(defaultLevel) => updateWaveformInterpretation(state.pulseLevel, defaultLevel)}
-      onLowGapToleranceChange={updateLowGapTolerance}
-      onLowGapAnnotationChange={updateLowGapAnnotation}
-      onAccelDetect={updateAccelSegs}
-      onCursorChange={updateCursor}
-      onCursorMarkersChange={updateCursorMarkers}
-      onCursorPairChange={updateCursorPair}
-      onRangeModeChange={setRangeMode}
-      onRangeChange={setRange}
-      onClearRange={clearRange}
-      onToggleDerivView={toggleDerivView}
-      onToggleChart={toggleChartVisible}
-    />
+    <>
+      {screen}
+      {failure && (
+        <ParseFailureModal
+          fileName={failure.fileName}
+          format={failure.format}
+          error={failure.error}
+          onClose={() => setFailure(null)}
+        />
+      )}
+    </>
   );
 }
